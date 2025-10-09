@@ -1,0 +1,36 @@
+{
+  "name": "UsuariosSAP",
+  "version": "1.0.0",
+  "description": "A simple CAP project.",
+  "private": true,
+  "dependencies": {
+    "@dotenvx/dotenvx": "^1.51.0",
+    "@sap/cds": "^9",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "mongoose": "^8.18.3"
+  },
+  "devDependencies": {
+    "@cap-js/cds-types": "0.14.0",
+    "@cap-js/sqlite": "^2"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "dev": "cds watch",
+    "build": "cds build"
+  },
+  "cds": {
+    "folders": {
+      "db": "srv/api/models",
+      "srv": "srv/api/routes"
+    },
+    "requires": {
+      "impl": "srv/api/controller/us-usuarios-controller.js"
+    },
+    "serve": {
+      "UsuariosList": {
+        "path": "/api/us"
+      }
+    }
+  }
+}
