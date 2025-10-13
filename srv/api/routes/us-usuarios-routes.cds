@@ -1,7 +1,7 @@
 using { users as myus } from '../models/us-usuarios.cds';
 
 @impl: 'srv/api/controller/us-usuarios-controller.js'
-service UsuariosList @(path:'/api/us/') {
+service UsuariosList @(path:'/api/users/') {
     entity ztusers as projection on myus.ZTUSERS;
     @Core.Description: 'get-all-users'
     @path :'getall'
