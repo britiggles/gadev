@@ -1,5 +1,5 @@
 // Namespace del archivo
-namespace us;
+namespace users;
 
 // Define la entidad ZTUSERS.
 entity ZTUSERS {

@@ -1,4 +1,4 @@
-using { us as myus } from '../models/us-usuarios.cds';
+using { users as myus } from '../models/us-usuarios.cds';
 
 @impl: 'srv/api/controller/us-usuarios-controller.js'
 service UsuariosList @(path:'/api/us/') {

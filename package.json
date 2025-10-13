@@ -29,7 +29,7 @@
     },
     "serve": {
       "UsuariosList": {
-        "path": "/api/us"
+        "path": "/api/users"
       }
     }
   }

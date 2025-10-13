@@ -1,6 +1,6 @@
-using {us as myus} from './us-usuarios';
+using {users as myus} from './us-usuarios';
 
-namespace us;
+namespace users;
 
 entity ZTUSERS_ROLES {
     key USER    : Association to myus.ZTUSERS;
