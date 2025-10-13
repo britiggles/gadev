@@ -1,18 +1,22 @@
-using {users as myus} from './us-usuarios';
+namespace rol;
 
-namespace users;
+entity ZTROL {
+    ROLEID      : String;
+    ROLENAME    : String;
+    DESCRIPTION : String;
+    PROCESS     : array of {
+        NAMEAPP     : String;
+        PROCESSID   : String;
+        PRIVILEGEID : array of String;
+    };
+    ACTIVED     : Boolean;
+    DELETED     : Boolean;
+    DETAIL_ROW  : {
 
-entity ZTUSERS_ROLES {
-    key USER    : Association to myus.ZTUSERS;
-    key ROLEID  : String(100); 
-    REGUSER   : String(20) default 'SYSHANA';
-    REGDATE   : Date       default $now;
-    REGTIME   : Time;
-    MODUSER   : String(20) default 'SYSHANA';
-    MODDATE   : Date       default $now;
-    MODTIME   : Time;
-    ACTIVED   : Boolean    default true;
-    DELETED   : Boolean    default false;
-    ROLESAPID : String(500);
-}
-
+        DETAIL_ROW_REG : array of {
+            CURRENT : Boolean;
+            REGDATE : DateTime;
+            REGUSER : String;
+        }
+    };
+};
