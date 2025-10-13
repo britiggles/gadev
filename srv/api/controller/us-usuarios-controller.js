@@ -3,9 +3,11 @@ const { getUsuariosAll, getUsuarioById, createUsuario, updateUsuarioById, delete
 
 class UsuariosList extends cds.ApplicationService{
     async init (){
+//--------- 2. GET Mostrar todos los usuarios ---------------
         this.on('getall', async (req)=> {
            return getUsuariosAll(req);
         });
+//----------- 3. GET Mostrar usuario por Id --------------
 
         this.on('READ', 'ztusers', async (req) => {
             const keyObject  = req.params[0];
@@ -29,7 +31,7 @@ class UsuariosList extends cds.ApplicationService{
         });
 
 
-//----- POST ------
+//---------- 1. POST Crear un usuario ------------
         this.on('create', async (req) => {
             try {
                 console.log("Payload recibido para crear:", req.data.usuario);
@@ -43,7 +45,7 @@ class UsuariosList extends cds.ApplicationService{
         });
 
 
-//------ PUT ----------
+//-------- 4. PUT Actualizar un usuarios por Id ---------
         this.on('UPDATE', 'ztusers', async (req) => {
             try {
                 // El ID del usuario a actualizar viene en req.params, como en el GET
@@ -69,7 +71,7 @@ class UsuariosList extends cds.ApplicationService{
             }
         });
 
-//---------- DELETE --------------
+//------------- 5. DELETE Eliminar un usuario por Id ------------
         this.on('DELETE', 'ztusers', async (req) => {
             try {
                 // El ID del usuario a eliminar viene en req.params

@@ -1,5 +1,6 @@
 const Usuarios = require('../models/mongodb/Usuario.js');
 
+//--------- 2. GET Mostrar todos los usuarios ---------------
 async function getUsuariosAll(req) {
     try{
         let user;
@@ -12,6 +13,7 @@ async function getUsuariosAll(req) {
     }
 }
 
+//----------- 3. GET Mostrar usuario por Id --------------
 async function getUsuarioById(userId) {
     try {
         const usuarioEncontrado = await Usuarios.findOne({ USERID: userId });
@@ -28,7 +30,7 @@ async function getUsuarioById(userId) {
     }
 }
 
-
+//---------- 1. POST Crear un usuario ------------
 async function createUsuario(data) {
     try {
         const nuevoUsuario = new Usuarios(data);
@@ -42,7 +44,7 @@ async function createUsuario(data) {
     }
 }
 
-//-------- PUT ---------
+//-------- 4. PUT Actualizar un usuarios por Id ---------
 async function updateUsuarioById(userId, dataToUpdate) {
     try {
         const updatedUser = await Usuarios.findOneAndUpdate(
@@ -67,7 +69,7 @@ async function updateUsuarioById(userId, dataToUpdate) {
 }
 
 
-//------------- DELETE ------------
+//------------- 5. DELETE Eliminar un usuario por Id ------------
 async function deleteUsuarioById(userId) {
     try {
         // Usamos findOneAndDelete para buscar, eliminar y opcionalmente retornar el documento eliminado.
