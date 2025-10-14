@@ -1,6 +1,7 @@
 const cds = require("@sap/cds");
 
-const { postRol, addProcessRol,addPrivilege } = require("../service/us-rol-post-service");
+const { postRol, addProcessRol, addPrivilege,
+  DeleteHard, RemoveProcess, RemovePrivilege } = require("../service/us-rol-service");
 
 class rolPostController extends cds.ApplicationService {
   async init() {
@@ -83,8 +84,67 @@ class rolPostController extends cds.ApplicationService {
       }
     });
 
+    //DELETE HARD ROL por ID
+    this.on("DeleteHard", async (req) => {
+      try {
+        // 1. Extrae el identificador del body.
+        const { ROLEID } = req.data;
+
+        // 2. Llama a la nueva función del servicio con los datos.
+        const resultado = await DeleteHard(ROLEID);
+
+        // 3. Devuelve la aplicación actualizada.
+        return resultado;
+      } catch (error) {
+        req.error(error.statusCode || 500, error.message);
+      }
+    });
+
+
+    //REMOVE PROCESS FROM ROL 
+    this.on("RemoveProcess", async (req) => {
+      try {
+
+        // 2. Los datos del body vienen en req.data
+        const { ROLEID, PROCESSID } = req.data
+
+        console.log(`Intentando borrar process ${PROCESSID} del rol: ${ROLEID}`);
+
+
+        // 3. Llamar a la lógica del servicio
+        const resultado = await RemoveProcess(ROLEID, PROCESSID);
+
+        // 4. Devolver el resultado
+        return resultado;
+      } catch (error) {
+        // 5. Manejar errores específicos del servicio
+        // Usa el statusCode que definimos en el servicio (404, 409) o un 500 genérico.
+        req.error(error.statusCode || 500, error.message);
+      }
+    });
+
+    //Delete Privilege from process
+    this.on("RemovePrivilege", async (req) => {
+      try {
+        // 1. Extrae los tres identificadores del body.
+        const { ROLEID, PROCESSID, PRIVILEGEID } = req.data;
+
+        // 2. Llama a la nueva función del servicio con los datos.
+        const resultado = await RemovePrivilege(ROLEID, PROCESSID, PRIVILEGEID);
+
+        // 3. Devuelve la aplicación actualizada.
+        return resultado;
+      } catch (error) {
+        req.error(error.statusCode || 500, error.message);
+      }
+    });
+
+
+
     return await super.init();
   }
 }
+
+
 
 module.exports = rolPostController;
