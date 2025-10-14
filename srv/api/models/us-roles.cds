@@ -7,7 +7,9 @@ entity ZTROL {
     PROCESS     : array of {
         NAMEAPP     : String;
         PROCESSID   : String;
-        PRIVILEGEID : array of String;
+        PRIVILEGE : array of {
+                PRIVILEGEID : String;
+            };
     };
     ACTIVED     : Boolean;
     DELETED     : Boolean;

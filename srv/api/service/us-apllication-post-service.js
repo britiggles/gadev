@@ -8,7 +8,7 @@ async function postApplication(data) {
 
     return saveApplication.toObject();
   } catch (error) {
-    console.error("Error en el servicio :", error);
+    console.error("Error en el servicio postApplication:", error);
     throw error;
   }
 }
