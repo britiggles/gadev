@@ -2,6 +2,7 @@ const express = require('express');
 const cds = require('@sap/cds');
 const cors = require('cors');
 require('./srv/config/connectToMongoDB.js'); 
+require('./srv/config/connectToCosmosDB.js')
 
 module.exports = async (o) => {
     try{

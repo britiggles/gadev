@@ -23,6 +23,9 @@ mta_archives/
 *.orig
 *.log
 
+.env
+.env.*
+
 *.iml
 *.flattened-pom.xml
 

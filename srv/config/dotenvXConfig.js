@@ -9,4 +9,9 @@ module.exports = {
     DATABASE: process.env.DATABASE || 'db_default',  
     DB_USER: process.env.DB_USER || 'admin',  
     DB_PASSWORD: process.env.DB_PASSWORD || 'admin', 
+
+    //COSMOS
+    COSMOS_DB_URI: process.env.COSMOS_DB_URI || 'NO ENCONTRE VARIABLE DE ENTORNO COSMOS_DB_URI',
+    COSMOS_DB_KEY: process.env.COSMOS_DB_KEY || 'NO ENCONTRE VARIABLE DE ENTORNO COSMOS_DB_KEY',
+    COSMOS_DB_DATABASE: process.env.COSMOS_DB_DATABASE || 'NO ENCONTRE VARIABLE DE ENTORNO COSMOS_DB_DATABASE',
 }
