@@ -16,6 +16,8 @@ const mongoHandlers = {
   get: {
     all: (data, req) => getRolAll(),
     one: (data, req) => getRolById(data),
+    processByRol: (data, req) => getProcessByRol(data.ROLID, req),
+    privilegesByRol: (data, req) => getPrivilegesByRol(data.ROLID, data.PROCESSID, req)
   },
   post: {
     create: (data, req) => postRol(data),

@@ -70,6 +70,82 @@ async function getRolById(req) {
   }
 }
 
+//--------- 3. GET Procesos asociados a un rol ---------------
+async function getProcessByRol(ROLEID) {
+  const bitacora = BITACORA();
+  bitacora.process = "Obtener procesos asociados a un Rol";
+
+  let dataPaso = DATA();
+  dataPaso.process = "Consulta a MongoDB para obtener los procesos de un rol";
+  dataPaso.dataReq = { ROLEID };
+
+  try {
+    const rol = await Rol.findOne({ ROLEID }, { PROCESS: 1 }).lean();
+
+    if (!rol || !rol.PROCESS) {
+      dataPaso.messageDEV = `No se encontraron procesos asociados al ROLEID: ${ROLEID}`;
+      dataPaso.messageUSR = "Este rol no tiene procesos asociados.";
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
+
+    dataPaso.dataRes = rol.PROCESS;
+    dataPaso.messageUSR = "Procesos obtenidos exitosamente.";
+    AddMSG(bitacora, dataPaso, "OK", 200);
+
+    return OK(bitacora);
+  } catch (error) {
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR = "Ocurrió un error al obtener los procesos.";
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
+
+    return FAIL(bitacora);
+  }
+}
+
+
+//--------- 4. GET Privilegios asociados a un rol y proceso específico ---------------
+async function getPrivilegesByRol(ROLEID, PROCESSID) {
+  const bitacora = BITACORA();
+  bitacora.process = "Obtener privilegios asociados a un Rol y Proceso";
+
+  let dataPaso = DATA();
+  dataPaso.process = "Consulta a MongoDB para obtener privilegios de un proceso específico";
+  dataPaso.dataReq = { ROLEID, PROCESSID };
+
+  try {
+    const rol = await Rol.findOne({ ROLEID }, { PROCESS: 1 }).lean();
+
+    if (!rol || !rol.PROCESS) {
+      dataPaso.messageDEV = `No se encontraron procesos para el ROLEID: ${ROLEID}`;
+      dataPaso.messageUSR = "El rol no tiene procesos asociados.";
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
+
+    const proceso = rol.PROCESS.find(p => p.PROCESSID === PROCESSID);
+
+    if (!proceso || !proceso.PRIVILEGE) {
+      dataPaso.messageDEV = `No se encontró el proceso con ID: ${PROCESSID}`;
+      dataPaso.messageUSR = "El proceso no tiene privilegios registrados.";
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
+
+    dataPaso.dataRes = proceso.PRIVILEGE;
+    dataPaso.messageUSR = "Privilegios obtenidos exitosamente.";
+    AddMSG(bitacora, dataPaso, "OK", 200);
+
+    return OK(bitacora);
+  } catch (error) {
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR = "Ocurrió un error al obtener los privilegios.";
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
+
+    return FAIL(bitacora);
+  }
+}
+
 async function postRol(data) {
   const bitacora = BITACORA();
   bitacora.process = "Crear un nuevo Rol";
@@ -322,6 +398,8 @@ async function RemovePrivilege(rolId, processId, privilegeId) {
 module.exports = {
   getRolAll,
   getRolById,
+  getProcessByRol,
+  getPrivilegesByRol,
   postRol,
   addProcessRol,
   addPrivilege,
