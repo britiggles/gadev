@@ -5,7 +5,7 @@ const {
   AddMSG,
   OK,
   FAIL,
-} = require("../../helpers/respPWA.handler.js");
+} = require("../../middlewares/respPWA.handler.js");
 
 // GET
 
