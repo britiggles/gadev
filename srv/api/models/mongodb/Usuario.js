@@ -1,3 +1,4 @@
+//srv\api\models\mongodb\Usuario.js
 const mongoose = require('mongoose');
 
 const usuariosSchema = new mongoose.Schema({

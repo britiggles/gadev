@@ -1,10 +1,29 @@
 const cds = require("@sap/cds");
 
-const { postRol, addProcessRol, addPrivilege,
-  DeleteHard, RemoveProcess, RemovePrivilege } = require("../service/us-rol-service");
+const {
+  postRol,
+  addProcessRol,
+  addPrivilege,
+  DeleteHard,
+  RemoveProcess,
+  RemovePrivilege,
+} = require("../service/us-rol-service");
+
+
+
+const {rolCrudService} = require("../service/us-rol-service-crud.js")
 
 class rolPostController extends cds.ApplicationService {
   async init() {
+    this.on("rolcrud", async (req) => {
+      const { procedure, db,LoggedUser } = req.req.query;
+      if (!procedure || !db) {
+        return { message: "Faltan parametros importantes" };
+      } else {
+        return rolCrudService(req);
+      }
+    });
+
     //Crear Rol
     this.on("create", async (req) => {
       try {
@@ -100,16 +119,15 @@ class rolPostController extends cds.ApplicationService {
       }
     });
 
-
-    //REMOVE PROCESS FROM ROL 
+    //REMOVE PROCESS FROM ROL
     this.on("RemoveProcess", async (req) => {
       try {
-
         // 2. Los datos del body vienen en req.data
-        const { ROLEID, PROCESSID } = req.data
+        const { ROLEID, PROCESSID } = req.data;
 
-        console.log(`Intentando borrar process ${PROCESSID} del rol: ${ROLEID}`);
-
+        console.log(
+          `Intentando borrar process ${PROCESSID} del rol: ${ROLEID}`
+        );
 
         // 3. Llamar a la lógica del servicio
         const resultado = await RemoveProcess(ROLEID, PROCESSID);
@@ -139,12 +157,8 @@ class rolPostController extends cds.ApplicationService {
       }
     });
 
-
-
     return await super.init();
   }
 }
-
-
 
 module.exports = rolPostController;
