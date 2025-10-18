@@ -7,6 +7,7 @@ const BITACORA = () => {
         success         : false,
         status          : 0,
         process         : '',
+        processType     : '',
         messageUSR      : '',
         messageDEV      : '',
         countData       : 0,
@@ -30,6 +31,7 @@ const DATA = () => {
         success         : false,
         status          : 0,
         process         : '',
+        processType     : '',
         principal       : false,
         secuencia       : 0,
         countDataReq    : 0,
@@ -57,11 +59,12 @@ const AddMSG = (bitacora, data, tipo, status = 500, principal = false) => {
         bitacora.success = data.sucess  || false;
     }
 
-    data.status     = data.status       || status;
-    data.process    = data.process      || 'No Especificado';
-    data.principal  = data.principal    || principal;
-    data.method     = data.method       || 'No Especificado';
-    data.api        = data.api          || 'No Especificado';
+    data.status      = data.status       || status;
+    data.process     = data.process      || 'No Especificado';
+    data.processType = data.processType  || 'No Especificado';
+    data.principal   = data.principal    || principal;
+    data.method      = data.method       || 'No Especificado';
+    data.api         = data.api          || 'No Especificado';
 
     data.secuencia++;
 
@@ -136,6 +139,7 @@ const OK = (bitacora) => {
         success         : bitacora.success      || true,
         status          : bitacora.status       || 500,
         process         : bitacora.process      || 'No Especificado',
+        processType     : bitacora.processType  || 'No Especificado',
         messageUSR      : bitacora.messageUSR   || 'No Especificado',
         messageDEV      : bitacora.messageDEV   || 'No Especificado',
         countData       : bitacora.countData    || 0,
@@ -161,6 +165,7 @@ const FAIL = (bitacora) => {
         success         : bitacora.success      || false,
         status          : bitacora.status       || 500,
         process         : bitacora.process      || 'No Especificado',
+        processType     : bitacora.processType  || 'No Especificado',
         messageUSR      : bitacora.messageUSR   || 'No Especificado',
         messageDEV      : bitacora.messageDEV   || 'No Especificado',
         countData       : bitacora.countData    || 0,

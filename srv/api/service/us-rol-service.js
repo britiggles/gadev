@@ -1,3 +1,5 @@
+
+const mongoose = require("mongoose");
 const Rol = require("../models/mongodb/Rol.js");
 const {
   BITACORA,
@@ -5,405 +7,687 @@ const {
   AddMSG,
   OK,
   FAIL,
-} = require("../../middlewares/respPWA.handler.js");
+} = require("../../helpers/respPWA.handler.js");
 
-// GET
-
-//--------- 1. GET Mostrar todos los roles ---------------
-async function getRolAll() {
-  const bitacora = BITACORA();
-  bitacora.process = "Obtener todos los Roles";
-
-  let dataPaso = DATA();
-  dataPaso.process = "Consulta a MongoDB para obtener roles";
+// Función para conectar a DB según DBServer
+async function connectDB(DBServer) {
+  const mongoUri = process.env.MONGO_URI;
+  const cosmosUri = process.env.COSMOS_URI;
 
   try {
-    const roles = await Rol.find().lean();
+    switch (DBServer) {
+      case "MongoDB":
+        if (mongoose.connection.readyState === 0) {
+          await mongoose.connect(mongoUri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+          });
+          console.log("Conectado a MongoDB local.");
+        }
+        break;
 
+      case "AZURECOSMOS":
+        if (mongoose.connection.readyState === 0) {
+          await mongoose.connect(cosmosUri, {
+            auth: {
+              username: process.env.COSMOSDB_USER,
+              password: process.env.COSMOSDB_PASSWORD,
+            },
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            retryWrites: false,
+            ssl: true,
+          });
+          console.log("Conectado a Azure CosmosDB (Mongo API).");
+        }
+        break;
+
+      default:
+        throw new Error(`DBServer no reconocido: ${DBServer}`);
+    }
+  } catch (error) {
+    console.error(`Error al conectar a ${DBServer}:`, error.message);
+    throw error;
+  }
+}
+
+async function getRolAll(processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Obtener todos los Roles`;
+  let dataPaso = DATA();
+  dataPaso.process = "Consulta a MongoDB para obtener roles";
+  dataPaso.method = "GET";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  dataPaso.dataReq = { processType, dbServer, loggedUser };
+  try {
+    const roles = await Rol.find().lean();
     dataPaso.dataRes = roles;
     dataPaso.messageUSR = "Roles obtenidos exitosamente.";
-    AddMSG(bitacora, dataPaso, "OK", 200);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
     return OK(bitacora);
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR =
       "No se pudieron obtener los roles. Intente más tarde.";
-    AddMSG(bitacora, dataPaso, "FAIL", 500);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+    bitacora.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
     return FAIL(bitacora);
   }
 }
 
-//--------- 2. GET Mostrar un rol por roleid ---------------
-async function getRolById(req) {
+async function getRolById(data, processType, dbServer, loggedUser) {
   const bitacora = BITACORA();
-  bitacora.process = "Obtener un Rol por su ID";
-
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Obtener un Rol por su ID`;
   let dataPaso = DATA();
   dataPaso.process = "Consulta a MongoDB para obtener un rol específico";
 
   try {
-    const { ROLEID } = req;
-    dataPaso.dataReq = { ROLEID };
-
-    const rol = await Rol.findOne({ ROLEID: ROLEID }).lean();
+    const { ROLEID } = data;
+    dataPaso.dataReq = { data, processType, dbServer, loggedUser };
+    dataPaso.method = "GET";
+    dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+    const rol = await Rol.findOne({ ROLEID }).lean();
 
     if (!rol) {
       dataPaso.messageDEV = `No se encontró un rol con el ROLEID: ${ROLEID}`;
       dataPaso.messageUSR = "El rol que buscas no existe.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
       AddMSG(bitacora, dataPaso, "FAIL", 404);
       return FAIL(bitacora);
     }
-
     dataPaso.dataRes = rol;
     dataPaso.messageUSR = "Rol obtenido exitosamente.";
-    AddMSG(bitacora, dataPaso, "OK", 200);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
     return OK(bitacora);
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR = "Ocurrió un error al buscar el rol.";
-    AddMSG(bitacora, dataPaso, "FAIL", 500);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
     return FAIL(bitacora);
   }
 }
 
-//--------- 3. GET Procesos asociados a un rol ---------------
-async function getProcessByRol(ROLEID) {
+async function getProcessByRol(data, processType, dbServer, loggedUser) {
   const bitacora = BITACORA();
-  bitacora.process = "Obtener procesos asociados a un Rol";
-
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Obtener procesos asociados a un Rol`;
   let dataPaso = DATA();
+  dataPaso.method = "GET";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
   dataPaso.process = "Consulta a MongoDB para obtener los procesos de un rol";
-  dataPaso.dataReq = { ROLEID };
+  const { ROLEID } = data;
+  dataPaso.dataReq = { processType, dbServer, loggedUser, ROLEID };
 
   try {
     const rol = await Rol.findOne({ ROLEID }, { PROCESS: 1 }).lean();
-
     if (!rol || !rol.PROCESS) {
       dataPaso.messageDEV = `No se encontraron procesos asociados al ROLEID: ${ROLEID}`;
       dataPaso.messageUSR = "Este rol no tiene procesos asociados.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
       AddMSG(bitacora, dataPaso, "FAIL", 404);
       return FAIL(bitacora);
     }
-
     dataPaso.dataRes = rol.PROCESS;
     dataPaso.messageUSR = "Procesos obtenidos exitosamente.";
-    AddMSG(bitacora, dataPaso, "OK", 200);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
     return OK(bitacora);
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR = "Ocurrió un error al obtener los procesos.";
-    AddMSG(bitacora, dataPaso, "FAIL", 500);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
     return FAIL(bitacora);
   }
 }
 
-
-//--------- 4. GET Privilegios asociados a un rol y proceso específico ---------------
-async function getPrivilegesByRol(ROLEID, PROCESSID) {
+async function getPrivilegesByRol(data, processType, dbServer, loggedUser) {
   const bitacora = BITACORA();
-  bitacora.process = "Obtener privilegios asociados a un Rol y Proceso";
-
+  bitacora.loggedUser = loggedUser;
+  dataPaso.method = "GET";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  bitacora.process = `${processType} - Obtener privilegios asociados a un Rol y Proceso`;
   let dataPaso = DATA();
-  dataPaso.process = "Consulta a MongoDB para obtener privilegios de un proceso específico";
+  dataPaso.process =
+    "Consulta a MongoDB para obtener privilegios de un proceso específico";
+  const { ROLEID, PROCESSID } = data;
   dataPaso.dataReq = { ROLEID, PROCESSID };
 
   try {
     const rol = await Rol.findOne({ ROLEID }, { PROCESS: 1 }).lean();
-
     if (!rol || !rol.PROCESS) {
       dataPaso.messageDEV = `No se encontraron procesos para el ROLEID: ${ROLEID}`;
       dataPaso.messageUSR = "El rol no tiene procesos asociados.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
       AddMSG(bitacora, dataPaso, "FAIL", 404);
       return FAIL(bitacora);
     }
 
-    const proceso = rol.PROCESS.find(p => p.PROCESSID === PROCESSID);
-
+    const proceso = rol.PROCESS.find((p) => p.PROCESSID === PROCESSID);
     if (!proceso || !proceso.PRIVILEGE) {
       dataPaso.messageDEV = `No se encontró el proceso con ID: ${PROCESSID}`;
       dataPaso.messageUSR = "El proceso no tiene privilegios registrados.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
       AddMSG(bitacora, dataPaso, "FAIL", 404);
       return FAIL(bitacora);
     }
 
     dataPaso.dataRes = proceso.PRIVILEGE;
     dataPaso.messageUSR = "Privilegios obtenidos exitosamente.";
-    AddMSG(bitacora, dataPaso, "OK", 200);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
     return OK(bitacora);
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR = "Ocurrió un error al obtener los privilegios.";
-    AddMSG(bitacora, dataPaso, "FAIL", 500);
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
     return FAIL(bitacora);
   }
 }
 
-async function postRol(data) {
+async function postRol(data, processType, dbServer, loggedUser) {
   const bitacora = BITACORA();
-  bitacora.process = "Crear un nuevo Rol";
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Crear un nuevo Rol`;
   let dataPaso = DATA();
   dataPaso.process = "Guardado de nuevo rol en MongoDB";
-  dataPaso.dataReq = data;
+  dataPaso.method = "POST";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  dataPaso.dataReq = { processType, dbServer, loggedUser, data };
   try {
     const newRol = new Rol(data);
     const savedRol = await newRol.save();
     dataPaso.dataRes = savedRol.toObject();
     dataPaso.messageUSR = "Rol creado exitosamente.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
     AddMSG(bitacora, dataPaso, "OK", 201);
-    return OK(bitacora);
+    return OK(bitacora, 201);
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR =
-      "No se pudo crear el rol. Por favor, verifique que los datos sean correctos.";
+      "No se pudo crear el rol. Verifique que los datos sean correctos.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
     AddMSG(bitacora, dataPaso, "FAIL", 400);
     return FAIL(bitacora);
   }
 }
 
-async function addProcessRol(roleId, processDataR) {
-  try {
-    // 1. Buscar la aplicación por su APPID
-    console.log(roleId, processDataR);
-    const rol = await Rol.findOne({ ROLEID: roleId });
-    const processData = processDataR.PROCESS;
-    // 2. Si no se encuentra, lanzar un error claro
-    if (!rol) {
-      const error = new Error("rol no encontrada");
-      error.statusCode = 404; // Not Found
-      throw error;
-    }
+async function addProcessRol(data, processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Añadir proceso a un Rol`;
+  let dataPaso = DATA();
+  dataPaso.process = "Añadir proceso dentro de un rol en MongoDB";
+  dataPaso.method = "POST";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  dataPaso.dataReq = { processType, dbServer, loggedUser, data };
 
-    // 3.  Verificar si la vista ya existe
+  try {
+    const { ROLEID, PROCESS } = data;
+    const rol = await Rol.findOne({ ROLEID });
+    if (!rol) {
+      dataPaso.messageDEV = `No se encontró el rol con ROLEID: ${ROLEID}`;
+      dataPaso.messageUSR = "Rol no encontrado.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
     const processExist = rol.PROCESS.some(
-      (process) => process.PROCESSID === processData[0].PROCESSID
+      (p) => p.PROCESSID === PROCESS[0].PROCESSID
     );
     if (processExist) {
-      const error = new Error(
-        `El processos con el ID '${processData[0].PROCESSID}' ya existe en este rol.`
-      );
-      error.statusCode = 409; // Conflict
-      throw error;
-    }
+      dataPaso.messageDEV = `El proceso con ID '${PROCESS[0].PROCESSID}' ya existe en este rol.`;
+      dataPaso.messageUSR = "El proceso ya existe en el rol.";
 
-    // 4. Crear el nuevo objeto de vista
-    const newProcess = {
-      NAMEAPP: processData[0].NAMEAPP,
-      PROCESSID: processData[0].PROCESSID,
-      PRIVILEGEID: processData[0].PRIVILEGEID || [], // Usa el array de procesos si viene, si no, uno vacío
-    };
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
 
-    // 5. Añadir la nueva vista al array 'VIEWS'
-    rol.PROCESS.push(newProcess);
-
-    // 6. Guardar los cambios en la base de datos
-    const updatedRol = await rol.save();
-
-    // 7. Devolver el documento actualizado
-    return updatedRol.toObject();
-  } catch (error) {
-    console.error("Error en el servicio addProcessRol:", error);
-    // Re-lanzar el error para que el controlador lo maneje
-    throw error;
-  }
-}
-
-async function addPrivilege(rolId, processId, privilegeId) {
-  try {
-    // 1. Encuentra el rol.
-    const rol = await Rol.findOne({ ROLEID: rolId });
-
-    // 2. Si no se encuentra, lanzar un error claro
-    if (!rol) {
-      const error = new Error("rol no encontrada");
-      error.statusCode = 404; // Not Found
-      throw error;
-    }
-
-    // 2. Encuentra el process indicado
-    const targetProcess = rol.PROCESS.find(
-      (process) => process.PROCESSID === processId
-    );
-
-    if (!targetProcess) {
-      const error = new Error("Proceso no encontrada en este rol");
-      error.statusCode = 404; // Not Found
-      throw error;
-    }
-
-    // 3. (Recomendado) Verifica si el privilegio ya existe en esa proceso.
-    const privilegeExist = targetProcess.PRIVILEGE.some(
-      (proc) => proc.PRIVILEGEID === privilegeId
-    );
-    if (privilegeExist) {
-      const error = new Error(
-        `El privilegio con ID '${PRIVILEGEID}' ya existe en esta proceso.`
-      );
-      error.statusCode = 409; // Conflict
-      throw error;
-    }
-
-    // 4. Añade el nuevo proceso al array 'PROCESS' de la vista encontrada.
-    targetProcess.PRIVILEGE.push({ PRIVILEGEID: privilegeId });
-
-    // 5. Guarda el documento principal modificado.
-    const updatedRol = await rol.save();
-
-    return updatedRol.toObject();
-  } catch (error) {
-    console.error("Error en el servicio addPrivilege:", error);
-    throw error;
-  }
-}
-
-//DELETE HARD ROL por ID
-async function DeleteHard(rolId) {
-
-  const bitacora = BITACORA();
-  bitacora.process = "Eliminación física (hard delete) de un Rol";
-
-
-  let dataPaso = DATA();
-  dataPaso.process = "Búsqueda y eliminación de rol en MongoDB";
-  dataPaso.dataReq = { ROLEID: rolId }; 
-
-  try {
-
-    const deletedRol = await Rol.findOneAndDelete({ ROLEID: rolId });
-
-
-    if (!deletedRol) {
-
-      dataPaso.messageDEV = `No se encontró un rol con el ROLEID: ${rolId} para eliminar.`;
-      dataPaso.messageUSR = "El rol que intentas eliminar no existe.";
-      AddMSG(bitacora, dataPaso, "FAIL", 404); 
+      AddMSG(bitacora, dataPaso, "FAIL", 409);
       return FAIL(bitacora);
     }
 
+    rol.PROCESS.push({
+      NAMEAPP: PROCESS[0].NAMEAPP,
+      PROCESSID: PROCESS[0].PROCESSID,
+      PRIVILEGEID: PROCESS[0].PRIVILEGEID || [],
+    });
 
-    dataPaso.dataRes = deletedRol.toObject(); 
-    dataPaso.messageUSR = "Rol eliminado exitosamente.";
-    AddMSG(bitacora, dataPaso, "OK", 200); 
+    const updatedRol = await rol.save();
+    dataPaso.dataRes = updatedRol.toObject();
+    dataPaso.messageUSR = "Proceso añadido exitosamente.";
 
- 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
     return OK(bitacora);
   } catch (error) {
-
     dataPaso.messageDEV = error.message;
-    dataPaso.messageUSR = "Ocurrió un error al intentar eliminar el rol.";
-    AddMSG(bitacora, dataPaso, "FAIL", 500); 
+    dataPaso.messageUSR = "No se pudo añadir el proceso.";
 
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
     return FAIL(bitacora);
   }
 }
 
-async function RemoveProcess(rolId, processId) {
+async function addPrivilege(data, processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Añadir privilegio a un proceso en Rol`;
+  let dataPaso = DATA();
+  dataPaso.process = "Añadir privilegio dentro de un proceso en MongoDB";
+  dataPaso.method = "POST";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  dataPaso.dataReq = { processType, dbServer, loggedUser, data };
   try {
-    // --- Buscar el documento principal del rol ---
-    const rol = await Rol.findOne({ ROLEID: rolId });
-
-    // Valida que exista el rol
+    const { ROLEID, PROCESSID, PRIVILEGEID } = data;
+    const rol = await Rol.findOne({ ROLEID });
     if (!rol) {
-      //error personalizado con un código de estado
-      const error = new Error(`El rol con ID '${rolId}' no fue encontrado.`);
-      error.statusCode = 404;
-      throw error;
+      dataPaso.messageDEV = `No se encontró el rol con ROLEID: ${ROLEID}`;
+      dataPaso.messageUSR = "Rol no encontrado.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
     }
 
-    // ------Verificar que el proceso exista DENTRO del rol ---
-    const procesoExiste = rol.PROCESS.find((p) => p.PROCESSID === processId);
+    const targetProcess = rol.PROCESS.find((p) => p.PROCESSID === PROCESSID);
+    if (!targetProcess) {
+      dataPaso.messageDEV = `No se encontró el proceso con ID: ${PROCESSID}`;
+      dataPaso.messageUSR = "Proceso no encontrado en el rol.";
 
-    // Valida que exista el proceso
-    if (!procesoExiste) {
-      const error = new Error(
-        `El proceso con ID '${processId}' no existe en este rol.`
-      );
-      error.statusCode = 404;
-      throw error;
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
     }
-    //-------Borrar proceso anidado dentro de rol-------
-    // Usamos findOneAndUpdate para encontrar el rol y modificarlo
-    const updatedRol = await Rol.findOneAndUpdate(
-      { ROLEID: rolId }, // 1. Condición: Encuentra el rol con este ID
-      {
-        $pull: {
-          // 2. Operación: Extrae ($pull) un elemento del array...
-          PROCESS: { PROCESSID: processId }, // ...del array 'processes' donde el 'PROCESSID' coincida.
-        },
-      },
-      { new: true } // 3. Opción: Devuelve el documento DESPUÉS de la actualización.
+
+    const privilegeExist = targetProcess.PRIVILEGE?.some(
+      (priv) => priv.PRIVILEGEID === PRIVILEGEID
     );
+    if (privilegeExist) {
+      dataPaso.messageDEV = `El privilegio con ID '${PRIVILEGEID}' ya existe en este proceso.`;
+      dataPaso.messageUSR = "El privilegio ya existe en el proceso.";
 
-    return updatedRol ? updatedRol.toObject() : null;
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 409);
+      return FAIL(bitacora);
+    }
+
+    if (!targetProcess.PRIVILEGE) targetProcess.PRIVILEGE = [];
+    targetProcess.PRIVILEGE.push({ PRIVILEGEID });
+
+    const updatedRol = await rol.save();
+    dataPaso.dataRes = updatedRol.toObject();
+    dataPaso.messageUSR = "Privilegio añadido exitosamente.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
+    return OK(bitacora);
   } catch (error) {
-    console.error("Error al eliminar el subdocumento del rol:", error);
-    throw error;
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR = "No se pudo añadir el privilegio.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
+    return FAIL(bitacora);
   }
 }
-async function RemovePrivilege(rolId, processId, privilegeId) {
+
+async function deleteRolHard(data, processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Eliminación física (hard delete) de un Rol`;
+  let dataPaso = DATA();
+  const { ROLEID } = data;
+  dataPaso.process = "Búsqueda y eliminación de rol en MongoDB";
+  dataPaso.dataReq = { ROLEID };
+
   try {
-    // --- Buscar el documento principal del rol ---
-    const rol = await Rol.findOne({ ROLEID: rolId });
+    const deletedRol = await Rol.findOneAndDelete({ ROLEID });
+    if (!deletedRol) {
+      dataPaso.messageDEV = `No se encontró un rol con el ROLEID: ${ROLEID} para eliminar.`;
+      dataPaso.messageUSR = "El rol que intentas eliminar no existe.";
 
-    // Valida que exista el rol
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
+    dataPaso.dataRes = deletedRol.toObject();
+    dataPaso.messageUSR = "Rol eliminado exitosamente.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
+    return OK(bitacora);
+  } catch (error) {
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR = "Ocurrió un error al intentar eliminar el rol.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
+    return FAIL(bitacora);
+  }
+}
+
+async function removeProcess(data, processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Eliminar proceso de un Rol`;
+  let dataPaso = DATA();
+  const { ROLEID } = data;
+  const {PROCESSID} = data.PROCESS[0];
+  dataPaso.process = "Eliminar proceso de rol en MongoDB";
+  dataPaso.dataReq = { ROLEID, PROCESSID };
+
+  try {
+    const rol = await Rol.findOne({ ROLEID });
     if (!rol) {
-      //error personalizado con un código de estado
-      const error = new Error(`El rol con ID '${rolId}' no fue encontrado.`);
-      error.statusCode = 404;
-      throw error;
+      dataPaso.messageDEV = `El rol con ID '${ROLEID}' no fue encontrado.`;
+      dataPaso.messageUSR = "Rol no encontrado.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
     }
-
-    // ------Verificar que el proceso exista DENTRO del rol ---
-    const procesoExiste = rol.PROCESS.find((p) => p.PROCESSID === processId);
-
-    // Valida que exista el proceso
+    const procesoExiste = rol.PROCESS.find((p) => p.PROCESSID === PROCESSID);
     if (!procesoExiste) {
-      const error = new Error(
-        `El proceso con ID '${processId}' no existe en este rol.`
-      );
-      error.statusCode = 404;
-      throw error;
-    }
+      dataPaso.messageDEV = `El proceso con ID '${PROCESSID}' no existe en este rol.`;
+      dataPaso.messageUSR = "Proceso no encontrado en el rol.";
 
-    //-------Borrar privilegio anidado en proceso anidado dentro de rol anidado-------
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
     const updatedRol = await Rol.findOneAndUpdate(
-      { ROLEID: rolId }, // 1. Condición: Encuentra el rol principal
+      { ROLEID },
+      { $pull: { PROCESS: { PROCESSID } } },
+      { new: true }
+    );
+    dataPaso.dataRes = updatedRol ? updatedRol.toObject() : null;
+    dataPaso.messageUSR = "Proceso eliminado exitosamente.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
+    return OK(bitacora);
+  } catch (error) {
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR = "Ocurrió un error al eliminar el proceso.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
+    return FAIL(bitacora);
+  }
+}
+
+async function removePrivilege(data, processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Eliminar privilegio de un proceso en Rol`;
+  let dataPaso = DATA();
+  const { ROLEID } = data;
+  const {PROCESSID} = data.PROCESS[0];
+  const {PRIVILEGEID} = data.PROCESS[0].PRIVILEGE[0];
+  dataPaso.process = "Eliminar privilegio dentro de proceso en MongoDB";
+  dataPaso.dataReq = { ROLEID, PROCESSID, PRIVILEGEID };
+
+  try {
+    const rol = await Rol.findOne({ ROLEID });
+    if (!rol) {
+      dataPaso.messageDEV = `El rol con ID '${ROLEID}' no fue encontrado.`;
+      dataPaso.messageUSR = "Rol no encontrado.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
+    const procesoExiste = rol.PROCESS.find((p) => p.PROCESSID === PROCESSID);
+    if (!procesoExiste) {
+      dataPaso.messageDEV = `El proceso con ID '${PROCESSID}' no existe en este rol.`;
+      dataPaso.messageUSR = "Proceso no encontrado en el rol.";
+
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
+      return FAIL(bitacora);
+    }
+    const updatedRol = await Rol.findOneAndUpdate(
+      { ROLEID },
+      { $pull: { "PROCESS.$[proc].PRIVILEGE": { PRIVILEGEID } } },
       {
-        // 2. Operación: Extrae ($pull) del array anidado
-        $pull: {
-          "PROCESS.$[proc].PRIVILEGE": { PRIVILEGEID: privilegeId },
-        },
-      },
-      {
-        // 3. Buscamos el proceso específico dentro del array 'PROCESS'
-        arrayFilters: [{ "proc.PROCESSID": processId }], // Define qué es [proc]
-        new: true, // Devuelve el documento ya actualizado
+        arrayFilters: [{ "proc.PROCESSID": PROCESSID }],
+        new: true,
       }
     );
+    dataPaso.dataRes = updatedRol ? updatedRol.toObject() : null;
+    dataPaso.messageUSR = "Privilegio eliminado exitosamente.";
 
-    return updatedRol ? updatedRol.toObject() : null;
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200);
+    return OK(bitacora);
   } catch (error) {
-    console.error("Error al eliminar el privilegio:", error);
-    throw error;
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR = "Ocurrió un error al eliminar el privilegio.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 500);
+    return FAIL(bitacora);
   }
+}
+
+// Dispatcher centralizado
+async function crudRol(req) {
+  let bitacora = BITACORA();
+  let data = DATA();
+
+  let { ProcessType, LoggedUser, DBServer } = req.req.query;
+  const body = req.req.body.rol;
+  console.log(body);
+
+  bitacora.loggedUser = LoggedUser;
+  bitacora.processType = ProcessType;
+  bitacora.dbServer = DBServer;
+
+  await connectDB(DBServer);
+
+  switch (ProcessType) {
+    case "getAll":
+      bitacora = await getRolAll(ProcessType, DBServer, LoggedUser);
+      break;
+    case "getById":
+      bitacora = await getRolById(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "getProcess":
+      bitacora = await getProcessByRol(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "getPrivileges":
+      bitacora = await getPrivilegesByRol(
+        body,
+        ProcessType,
+        DBServer,
+        LoggedUser
+      );
+      break;
+    case "postRol":
+      bitacora = await postRol(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "addProcessRol":
+      bitacora = await addProcessRol(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "addPrivilege":
+      bitacora = await addPrivilege(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "deleteRol":
+      bitacora = await deleteRolHard(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "removeProcess":
+      bitacora = await removeProcess(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "removePrivilege":
+      bitacora = await removePrivilege(body, ProcessType, DBServer, LoggedUser);
+      break;
+    default:
+      data.status = 400;
+      data.messageDEV = `Proceso no reconocido: ${ProcessType}`;
+      data.messageUSR = "Tipo de proceso inválido";
+      data.dataRes = null;
+      throw new Error(data.messageDEV);
+  }
+  bitacora.success = true;
+  return OK(bitacora);
 }
 
 module.exports = {
-  getRolAll,
-  getRolById,
-  getProcessByRol,
-  getPrivilegesByRol,
-  postRol,
-  addProcessRol,
-  addPrivilege,
-  DeleteHard,
-  RemoveProcess,
-  RemovePrivilege,
+  crudRol,
 };
