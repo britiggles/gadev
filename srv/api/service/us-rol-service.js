@@ -1,6 +1,5 @@
-
 const mongoose = require("mongoose");
-const { getDatabase } = require("../../config/connectToCosmosDB.js")
+const { getDatabase } = require("../../config/connectToCosmosDB.js");
 const Rol = require("../models/mongodb/Rol.js");
 const {
   BITACORA,
@@ -22,7 +21,9 @@ async function connectDB(DBServer) {
         break;
 
       case "AZURECOSMOS":
-        console.log("✅ CosmosDB ya está conectado desde el archivo de config.");
+        console.log(
+          "✅ CosmosDB ya está conectado desde el archivo de config."
+        );
         break;
 
       default:
@@ -46,13 +47,13 @@ async function getRolAll(processType, dbServer, loggedUser) {
   try {
     let roles;
     if (dbServer === "MongoDB") {
-      roles = await Rol.find().lean()
+      roles = await Rol.find().lean();
     } else {
       // Consulta tipo SQL
       const querySpec = {
         query: "SELECT * FROM c",
       };
-      const contaRoles = getDatabase().container("ZTROL")
+      const contaRoles = getDatabase().container("ZTROL");
       const { resources } = await contaRoles.items.query(querySpec).fetchAll();
       roles = resources;
     }
@@ -269,7 +270,7 @@ async function postRol(data, processType, dbServer, loggedUser) {
       if (!data.id) {
         data.id = data.ROLEID;
       }
-       const contaRoles = getDatabase().container("ZTROL")
+      const contaRoles = getDatabase().container("ZTROL");
       const { resources } = await contaRoles.items.create(data);
       roles = resources;
     }
@@ -304,68 +305,96 @@ async function UpdateRol(data, processType, dbServer, loggedUser) {
   bitacora.loggedUser = loggedUser;
   bitacora.process = `${processType} - Actualizar un Rol`;
   let dataPaso = DATA();
-  dataPaso.process = "Actualizacion de un rol en MongoDB"; // Corregí un typo
+  dataPaso.process = `Actualizacion de un rol en ${dbServer}`; // Mensaje dinámico
   dataPaso.method = "PUT";
   dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
   dataPaso.dataReq = { processType, dbServer, loggedUser, data };
 
   try {
-
-    // Extraer el ROLEID del body
     const { ROLEID } = data;
 
-    //Validar que el ROLEID venga en la data
+    // 1. Validar que el ROLEID venga en la data (común para ambas DB)
     if (!ROLEID) {
-      dataPaso.messageDEV = "El campo 'ROLEID' es requerido en el body para actualizar.";
+      dataPaso.messageDEV = "El campo 'ROLEID' es requerido para actualizar.";
       dataPaso.messageUSR = "No se proporcionó el identificador del rol.";
-      dataPaso.processType = processType;
-      dataPaso.dbServer = dbServer;
-      dataPaso.loggedUser = loggedUser;
-      AddMSG(bitacora, dataPaso, "FAIL", 400); // 400 Bad Request
+      // ... (código de error)
+      AddMSG(bitacora, dataPaso, "FAIL", 400);
       return FAIL(bitacora);
     }
 
-    //Buscar por ROLEID y actualizar el documento
-    const updatedRol = await Rol.findOneAndUpdate(
-      { ROLEID: ROLEID }, // Filtro por ROLEID
-      data,               // Los datos nuevos a establecer
-      {
-        new: true,          // Opción para que devuelva el doc actualizado
-        //runValidators: true // Opcional: para que corra validaciones del Schema
+    let updatedRol; // Variable para almacenar el resultado
+
+    // 2. Lógica separada por tipo de base de datos
+    if (dbServer === "MongoDB") {
+      // --- LÓGICA PARA MONGODB ---
+      updatedRol = await Rol.findOneAndUpdate({ ROLEID: ROLEID }, data, {
+        new: true,
+      });
+      if (updatedRol) {
+        updatedRol = updatedRol.toObject(); // Convertir a objeto plano
       }
-    );
+    } else {
 
+      const contaRoles = getDatabase().container("ZTROL");
 
-    //Manejar el caso si no se encuentra el rol
+      const querySpec = {
+        query: "SELECT * FROM c WHERE c.ROLEID = @roleId",
+        parameters: [
+          {
+            name: "@roleId",
+            value: ROLEID,
+          },
+        ],
+      };
+
+      const { resources: items } = await contaRoles.items
+        .query(querySpec)
+        .fetchAll();
+
+      if (items.length === 0) {
+        finalUpdatedRol = null;
+      } else {
+        const rolToUpdate = items[0];
+
+        const updatedData = { ...rolToUpdate, ...data };
+
+        const { resource: replacedItem } = await contaRoles
+          .item(rolToUpdate.id, rolToUpdate.ROLEID)
+          .replace(updatedData);
+        finalUpdatedRol = replacedItem;
+        updatedRol = true;
+      }
+    }
+
+    // 3. Manejar el caso si no se encuentra el rol para actualizar
     if (!updatedRol) {
       dataPaso.messageDEV = `No se encontró un rol con ROLEID: ${ROLEID}`;
       dataPaso.messageUSR = "El rol que intenta actualizar no existe.";
-      dataPaso.processType = processType;
-      dataPaso.dbServer = dbServer;
-      dataPaso.loggedUser = loggedUser;
-      AddMSG(bitacora, dataPaso, "FAIL", 404); // 404 Not Found
+      // ... (código de error)
+      AddMSG(bitacora, dataPaso, "FAIL", 404);
       return FAIL(bitacora);
     }
 
-    //Éxito: El rol fue actualizado
-    dataPaso.dataRes = updatedRol.toObject(); // Usamos el rol actualizado
+    // 4. Éxito: El rol fue actualizado
+    dataPaso.dataRes = updatedRol;
     dataPaso.messageUSR = "Rol actualizado exitosamente.";
 
+    // ... (código de éxito)
     dataPaso.processType = processType;
     dataPaso.dbServer = dbServer;
     dataPaso.loggedUser = loggedUser;
-
     bitacora.processType = processType;
     bitacora.dbServer = dbServer;
 
-    AddMSG(bitacora, dataPaso, "OK", 200); // 200 OK para update
-    return OK(bitacora, 200); // Devolver 200 OK
-
+    AddMSG(bitacora, dataPaso, "OK", 200);
+    return OK(bitacora);
   } catch (error) {
+    // El catch manejará errores de conexión o si el item no existe en Cosmos DB
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR =
       "No se pudo actualizar el rol. Verifique que los datos sean correctos.";
 
+    // ... (código de error)
     dataPaso.processType = processType;
     dataPaso.dbServer = dbServer;
     dataPaso.loggedUser = loggedUser;
@@ -530,45 +559,78 @@ async function addPrivilege(data, processType, dbServer, loggedUser) {
 async function deleteRolHard(data, processType, dbServer, loggedUser) {
   const bitacora = BITACORA();
   bitacora.loggedUser = loggedUser;
-  bitacora.process = `${processType} - Eliminación física (hard delete) de un Rol`;
+  bitacora.process = `${processType} - Eliminación física de un Rol`;
   let dataPaso = DATA();
   const { ROLEID } = data;
-  dataPaso.process = "Búsqueda y eliminación de rol en MongoDB";
-  dataPaso.dataReq = { ROLEID };
+
+  dataPaso.process = `Búsqueda y eliminación de rol en ${dbServer}`;
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  dataPaso.dataReq = { processType, dbServer, loggedUser, data };
+
+  // 1. Validar que el ROLEID venga en la data (común para ambas DB)
+  if (!ROLEID) {
+    dataPaso.messageDEV = "El campo 'ROLEID' es requerido para eliminar.";
+    dataPaso.messageUSR = "No se proporcionó el identificador del rol.";
+    AddMSG(bitacora, dataPaso, "FAIL", 400);
+    return FAIL(bitacora);
+  }
 
   try {
-    const deletedRol = await Rol.findOneAndDelete({ ROLEID });
+    let deletedRol; // Variable para almacenar el resultado
+
+    // 2. Lógica separada por tipo de base de datos
+    if (dbServer === "MongoDB") {
+      // --- LÓGICA PARA MONGODB ---
+      const mongoResult = await Rol.findOneAndDelete({ ROLEID });
+      if (mongoResult) {
+        deletedRol = mongoResult.toObject();
+      }
+    } else {
+      // --- LÓGICA PARA AZURE COSMOS DB ---
+      const contaRoles = getDatabase().container("ZTROL");
+
+      // a. Crear la consulta para buscar el documento por ROLEID
+      const querySpec = {
+        query: "SELECT * FROM c WHERE c.ROLEID = @roleId",
+        parameters: [{ name: "@roleId", value: ROLEID }],
+      };
+
+      // b. Ejecutar la consulta para encontrar el documento
+      const { resources: items } = await contaRoles.items
+        .query(querySpec)
+        .fetchAll();
+
+      if (items.length > 0) {
+        const rolToDelete = items[0]; // El documento a eliminar
+
+        // c. Eliminar el documento usando su 'id' y su partition key ('ROLEID')
+        await contaRoles.item(rolToDelete.id, rolToDelete.ROLEID).delete();
+        
+        // Guardamos el objeto que acabamos de eliminar para devolverlo en la respuesta
+        deletedRol = rolToDelete; 
+      }
+    }
+
+    // 3. Manejar el caso si no se encontró el rol para eliminar
     if (!deletedRol) {
-      dataPaso.messageDEV = `No se encontró un rol con el ROLEID: ${ROLEID} para eliminar.`;
-      dataPaso.messageUSR = "El rol que intentas eliminar no existe.";
-
-      dataPaso.processType = processType;
-      dataPaso.dbServer = dbServer;
-      dataPaso.loggedUser = loggedUser;
-
+      dataPaso.messageDEV = `No se encontró un rol con ROLEID: ${ROLEID}`;
+      dataPaso.messageUSR = "El rol que intenta eliminar no existe.";
       AddMSG(bitacora, dataPaso, "FAIL", 404);
       return FAIL(bitacora);
     }
-    dataPaso.dataRes = deletedRol.toObject();
-    dataPaso.messageUSR = "Rol eliminado exitosamente.";
 
-    dataPaso.processType = processType;
-    dataPaso.dbServer = dbServer;
-    dataPaso.loggedUser = loggedUser;
+    // 4. Éxito: El rol fue eliminado
+    dataPaso.dataRes = deletedRol;
+    dataPaso.messageUSR = "Rol eliminado exitosamente.";
 
     bitacora.processType = processType;
     bitacora.dbServer = dbServer;
-
     AddMSG(bitacora, dataPaso, "OK", 200);
     return OK(bitacora);
+    
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR = "Ocurrió un error al intentar eliminar el rol.";
-
-    dataPaso.processType = processType;
-    dataPaso.dbServer = dbServer;
-    dataPaso.loggedUser = loggedUser;
-
     AddMSG(bitacora, dataPaso, "FAIL", 500);
     return FAIL(bitacora);
   }
@@ -774,5 +836,6 @@ async function crudRol(req) {
 }
 
 module.exports = {
-  crudRol, connectDB
+  crudRol,
+  connectDB,
 };
