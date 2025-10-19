@@ -24,7 +24,12 @@ service crudrol @(path: '/api/roles/') {
   // Esta acción sirve como un despachador dinámico para ejecutar diferentes procesos sobre roles.
   @Core.Description: 'CRUD dispatcher for roles' // Agrega una descripción para metadatos de servicio.
   @path            : 'crud' // Define la subruta específica para esta acción.
-  action crud(rol: RolInput) returns array of ZTROL
+  action crud(rol: RolInput) returns array of ZTROL;
+
+  @Core.Description: 'ccrud dispatcher for roles' // Agrega una descripción para metadatos de servicio.
+  @path            : 'ccrud' // Define la subruta específica para esta acción.
+  action ccrud(rol: RolInput) returns array of ZTROL;
+  
 
   type Privilege {
     PRIVILEGEID : String;

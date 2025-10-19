@@ -768,5 +768,5 @@ async function crudRol(req) {
 }
 
 module.exports = {
-  crudRol,
+  crudRol,connectDB
 };

@@ -172,6 +172,7 @@ const {
   crudRol // Función para manejar la acción CRUD, aquí específicamente para recuperar datos (GET).
 } = require("../service/us-rol-service.js"); // Ruta relativa al archivo con la lógica del servicio.
 
+const {crudRolC} = require("../service/cdb-us-rol-service.js");
 // Define una clase que extiende 'cds.ApplicationService' para manejar las operaciones del servicio 'RolGetController'.
 class RolGetController extends cds.ApplicationService {
   // Método de inicialización que se ejecuta cuando se lanza el servicio.
@@ -182,6 +183,11 @@ class RolGetController extends cds.ApplicationService {
       // Delegación de la lógica al servicio externo 'crudRolPrueba', pasando la solicitud original.
       // El resultado devuelto es lo que responderá el servicio al cliente.
       return crudRol(req);
+    });
+
+    this.on("ccrud", async (req) => {
+
+      return crudRolC(req);
     });
 
     // Llama a la inicialización de la clase base para completar la configuración del servicio.
