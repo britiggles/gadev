@@ -185,10 +185,6 @@ class RolGetController extends cds.ApplicationService {
       return crudRol(req);
     });
 
-    this.on("ccrud", async (req) => {
-
-      return crudRolC(req);
-    });
 
     // Llama a la inicialización de la clase base para completar la configuración del servicio.
     await super.init();

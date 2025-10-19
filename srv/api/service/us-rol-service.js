@@ -1,5 +1,6 @@
 
 const mongoose = require("mongoose");
+const { getDatabase } = require("../../config/connectToCosmosDB.js")
 const Rol = require("../models/mongodb/Rol.js");
 const {
   BITACORA,
@@ -8,45 +9,27 @@ const {
   OK,
   FAIL,
 } = require("../../middlewares/respPWA.handler.js");
+//conexion al container (como coleccion en mongoDB)
 
-// Función para conectar a DB según DBServer
 async function connectDB(DBServer) {
-  const mongoUri = process.env.MONGO_URI;
-  const cosmosUri = process.env.COSMOS_URI;
-
   try {
     switch (DBServer) {
       case "MongoDB":
         if (mongoose.connection.readyState === 0) {
-          await mongoose.connect(mongoUri, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-          });
-          console.log("Conectado a MongoDB local.");
+          await mongoose.connect(process.env.MONGO_URI);
+          console.log("✅ Conectado a MongoDB local.");
         }
         break;
 
       case "AZURECOSMOS":
-        if (mongoose.connection.readyState === 0) {
-          await mongoose.connect(cosmosUri, {
-            auth: {
-              username: process.env.COSMOSDB_USER,
-              password: process.env.COSMOSDB_PASSWORD,
-            },
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            retryWrites: false,
-            ssl: true,
-          });
-          console.log("Conectado a Azure CosmosDB (Mongo API).");
-        }
+        console.log("✅ CosmosDB ya está conectado desde el archivo de config.");
         break;
 
       default:
         throw new Error(`DBServer no reconocido: ${DBServer}`);
     }
   } catch (error) {
-    console.error(`Error al conectar a ${DBServer}:`, error.message);
+    console.error(`❌ Error al conectar a ${DBServer}:`, error.message);
     throw error;
   }
 }
@@ -56,12 +39,23 @@ async function getRolAll(processType, dbServer, loggedUser) {
   bitacora.loggedUser = loggedUser;
   bitacora.process = `${processType} - Obtener todos los Roles`;
   let dataPaso = DATA();
-  dataPaso.process = "Consulta a MongoDB para obtener roles";
+  dataPaso.process = `Consulta a ${dbServer} para obtener roles`;
   dataPaso.method = "GET";
   dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
   dataPaso.dataReq = { processType, dbServer, loggedUser };
   try {
-    const roles = await Rol.find().lean();
+    let roles;
+    if (dbServer === "MongoDB") {
+      roles = await Rol.find().lean()
+    } else {
+      // Consulta tipo SQL
+      const querySpec = {
+        query: "SELECT * FROM c",
+      };
+      const contaRoles = getDatabase().container("ZTROL")
+      const { resources } = await contaRoles.items.query(querySpec).fetchAll();
+      roles = resources;
+    }
     dataPaso.dataRes = roles;
     dataPaso.messageUSR = "Roles obtenidos exitosamente.";
 
@@ -260,14 +254,26 @@ async function postRol(data, processType, dbServer, loggedUser) {
   bitacora.loggedUser = loggedUser;
   bitacora.process = `${processType} - Crear un nuevo Rol`;
   let dataPaso = DATA();
-  dataPaso.process = "Guardado de nuevo rol en MongoDB";
+  dataPaso.process = `Guardado de nuevo rol en ${dbServer}`;
   dataPaso.method = "POST";
   dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
   dataPaso.dataReq = { processType, dbServer, loggedUser, data };
   try {
-    const newRol = new Rol(data);
-    const savedRol = await newRol.save();
-    dataPaso.dataRes = savedRol.toObject();
+    let roles;
+    if (dbServer === "MongoDB") {
+      const newRol = new Rol(data);
+      roles = await newRol.save();
+      roles = roles.toObject();
+    } else {
+      // Cosmos requiere que cada item tenga un "id"
+      if (!data.id) {
+        data.id = data.ROLEID;
+      }
+       const contaRoles = getDatabase().container("ZTROL")
+      const { resources } = await contaRoles.items.create(data);
+      roles = resources;
+    }
+    dataPaso.dataRes = roles;
     dataPaso.messageUSR = "Rol creado exitosamente.";
 
     dataPaso.processType = processType;
@@ -302,7 +308,7 @@ async function UpdateRol(data, processType, dbServer, loggedUser) {
   dataPaso.method = "PUT";
   dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
   dataPaso.dataReq = { processType, dbServer, loggedUser, data };
-  
+
   try {
 
     // Extraer el ROLEID del body
@@ -343,7 +349,7 @@ async function UpdateRol(data, processType, dbServer, loggedUser) {
 
     //Éxito: El rol fue actualizado
     dataPaso.dataRes = updatedRol.toObject(); // Usamos el rol actualizado
-    dataPaso.messageUSR = "Rol actualizado exitosamente."; 
+    dataPaso.messageUSR = "Rol actualizado exitosamente.";
 
     dataPaso.processType = processType;
     dataPaso.dbServer = dbServer;
@@ -358,7 +364,7 @@ async function UpdateRol(data, processType, dbServer, loggedUser) {
   } catch (error) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR =
-      "No se pudo actualizar el rol. Verifique que los datos sean correctos."; 
+      "No se pudo actualizar el rol. Verifique que los datos sean correctos.";
 
     dataPaso.processType = processType;
     dataPaso.dbServer = dbServer;
@@ -574,7 +580,7 @@ async function removeProcess(data, processType, dbServer, loggedUser) {
   bitacora.process = `${processType} - Eliminar proceso de un Rol`;
   let dataPaso = DATA();
   const { ROLEID } = data;
-  const {PROCESSID} = data.PROCESS[0];
+  const { PROCESSID } = data.PROCESS[0];
   dataPaso.process = "Eliminar proceso de rol en MongoDB";
   dataPaso.dataReq = { ROLEID, PROCESSID };
 
@@ -639,8 +645,8 @@ async function removePrivilege(data, processType, dbServer, loggedUser) {
   bitacora.process = `${processType} - Eliminar privilegio de un proceso en Rol`;
   let dataPaso = DATA();
   const { ROLEID } = data;
-  const {PROCESSID} = data.PROCESS[0];
-  const {PRIVILEGEID} = data.PROCESS[0].PRIVILEGE[0];
+  const { PROCESSID } = data.PROCESS[0];
+  const { PRIVILEGEID } = data.PROCESS[0].PRIVILEGE[0];
   dataPaso.process = "Eliminar privilegio dentro de proceso en MongoDB";
   dataPaso.dataReq = { ROLEID, PROCESSID, PRIVILEGEID };
 
@@ -768,5 +774,5 @@ async function crudRol(req) {
 }
 
 module.exports = {
-  crudRol,connectDB
+  crudRol, connectDB
 };
