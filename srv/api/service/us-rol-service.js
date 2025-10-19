@@ -7,7 +7,7 @@ const {
   AddMSG,
   OK,
   FAIL,
-} = require("../../helpers/respPWA.handler.js");
+} = require("../../middlewares/respPWA.handler.js");
 
 // Función para conectar a DB según DBServer
 async function connectDB(DBServer) {
@@ -283,6 +283,82 @@ async function postRol(data, processType, dbServer, loggedUser) {
     dataPaso.messageDEV = error.message;
     dataPaso.messageUSR =
       "No se pudo crear el rol. Verifique que los datos sean correctos.";
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    AddMSG(bitacora, dataPaso, "FAIL", 400);
+    return FAIL(bitacora);
+  }
+}
+
+async function UpdateRol(data, processType, dbServer, loggedUser) {
+  const bitacora = BITACORA();
+  bitacora.loggedUser = loggedUser;
+  bitacora.process = `${processType} - Actualizar un Rol`;
+  let dataPaso = DATA();
+  dataPaso.process = "Actualizacion de un rol en MongoDB"; // Corregí un typo
+  dataPaso.method = "PUT";
+  dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
+  dataPaso.dataReq = { processType, dbServer, loggedUser, data };
+  
+  try {
+
+    // Extraer el ROLEID del body
+    const { ROLEID } = data;
+
+    //Validar que el ROLEID venga en la data
+    if (!ROLEID) {
+      dataPaso.messageDEV = "El campo 'ROLEID' es requerido en el body para actualizar.";
+      dataPaso.messageUSR = "No se proporcionó el identificador del rol.";
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+      AddMSG(bitacora, dataPaso, "FAIL", 400); // 400 Bad Request
+      return FAIL(bitacora);
+    }
+
+    //Buscar por ROLEID y actualizar el documento
+    const updatedRol = await Rol.findOneAndUpdate(
+      { ROLEID: ROLEID }, // Filtro por ROLEID
+      data,               // Los datos nuevos a establecer
+      {
+        new: true,          // Opción para que devuelva el doc actualizado
+        //runValidators: true // Opcional: para que corra validaciones del Schema
+      }
+    );
+
+
+    //Manejar el caso si no se encuentra el rol
+    if (!updatedRol) {
+      dataPaso.messageDEV = `No se encontró un rol con ROLEID: ${ROLEID}`;
+      dataPaso.messageUSR = "El rol que intenta actualizar no existe.";
+      dataPaso.processType = processType;
+      dataPaso.dbServer = dbServer;
+      dataPaso.loggedUser = loggedUser;
+      AddMSG(bitacora, dataPaso, "FAIL", 404); // 404 Not Found
+      return FAIL(bitacora);
+    }
+
+    //Éxito: El rol fue actualizado
+    dataPaso.dataRes = updatedRol.toObject(); // Usamos el rol actualizado
+    dataPaso.messageUSR = "Rol actualizado exitosamente."; 
+
+    dataPaso.processType = processType;
+    dataPaso.dbServer = dbServer;
+    dataPaso.loggedUser = loggedUser;
+
+    bitacora.processType = processType;
+    bitacora.dbServer = dbServer;
+
+    AddMSG(bitacora, dataPaso, "OK", 200); // 200 OK para update
+    return OK(bitacora, 200); // Devolver 200 OK
+
+  } catch (error) {
+    dataPaso.messageDEV = error.message;
+    dataPaso.messageUSR =
+      "No se pudo actualizar el rol. Verifique que los datos sean correctos."; 
 
     dataPaso.processType = processType;
     dataPaso.dbServer = dbServer;
@@ -676,6 +752,9 @@ async function crudRol(req) {
       break;
     case "removePrivilege":
       bitacora = await removePrivilege(body, ProcessType, DBServer, LoggedUser);
+      break;
+    case "updateOne":
+      bitacora = await UpdateRol(body, ProcessType, DBServer, LoggedUser);
       break;
     default:
       data.status = 400;
