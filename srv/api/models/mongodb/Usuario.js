@@ -19,7 +19,20 @@ const usuariosSchema = new mongoose.Schema({
     ALIAS: {type: String,maxlength: 50},
     PHONENUMBER: {type: String,maxlength: 50},
     EXTENSION: {type: String,maxlength: 20}
-
+    ,
+    // Subdocumento para metadata consistente con el modelo CDS
+    DETAIL_ROW: {
+        ACTIVED: { type: Boolean, default: true },
+        DELETED: { type: Boolean, default: false },
+        DETAIL_ROW_REG: [
+            {
+                CURRENT: { type: Boolean, default: false },
+                REGDATE: { type: Date, default: () => new Date() },
+                REGTIME: { type: String, default: () => new Date().toTimeString().split(' ')[0] },
+                REGUSER: { type: String, default: 'SYSHANA' }
+            }
+        ]
+    }
 });
 
 module.exports = mongoose.model(

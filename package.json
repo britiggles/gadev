@@ -17,7 +17,8 @@
   },
   "scripts": {
     "start": "cds-serve",
-    "dev": "cds watch",
+  "dev": "cds watch",
+  "serve:mocks": "cds serve --with-mocks",
     "build": "cds build"
   },
   "cds": {
