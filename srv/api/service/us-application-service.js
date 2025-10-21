@@ -47,6 +47,7 @@ async function crudApplication(req) {
 
   try {
     await connectDB(dbServer);
+    console.log(req)
 
     switch (ProcessType) {
       case "createApp":
@@ -79,6 +80,19 @@ async function crudApplication(req) {
 
       case "restoreApp":
         bitacora = await restoreApplicationMethod(bitacora, body.appId, req);
+        break;
+
+      //Brit
+      case "deleteAppHard":
+        bitacora = await deleteHardApplicationMethod(bitacora,body.appId,req);
+        break;
+      //Brit
+      case "deleteViewHard":
+        bitacora = await deleteHardViewMethod(bitacora,body,req);
+        break;
+      //Brit
+      case "deleteProcessHard":
+        bitacora = await deleteHardProcessMethod(bitacora,body.appId, body.viewId, body.processId, req);
         break;
 
       default:
@@ -802,6 +816,314 @@ async function addProcessMethod(bitacora, appId, viewId, processId, req) {
       });
   }
 }
+//BRIT
+
+async function deleteHardApplicationMethod(bitacora, appId, req) {
+  let response = DATA();
+  bitacora.process = "Eliminación física de aplicación";
+  response.process = bitacora.process;
+  response.method = "DELETE";
+  response.api = "/deleteApp";
+
+  const dbServer = req.req.query?.dbServer;
+
+  // ================== MONGODB ==================
+  if (dbServer === "MongoDB") {
+    try {
+      const application = await Application.findOne({ APPID: appId });
+
+      if (!application) {
+        response.status = 404;
+        response.messageDEV = "Aplicación no encontrada";
+        response.messageUSR = "<<ERROR>> La aplicación no existe";
+        response.dataRes = null;
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      // Hard delete: eliminación física del documento
+      await Application.deleteOne({ APPID: appId });
+
+      response.messageUSR = "<<OK>> La aplicación fue eliminada permanentemente";
+      response.messageDEV = `Aplicación ${appId} eliminada correctamente de MongoDB`;
+      response.status = 200;
+      response.dataRes = { APPID: appId };
+
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+    } catch (err) {
+      response.status = err.status || 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudo eliminar la aplicación (MongoDB)";
+      response.dataRes = err;
+      return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+    }
+
+  // ================== COSMOS SQL ==================
+  } else {
+    try {
+      const container = getDatabase().container("ZTAPPLICATION");
+      const querySpec = {
+        query: "SELECT TOP 1 c.id, c.APPID FROM c WHERE c.APPID = @appId",
+        parameters: [{ name: "@appId", value: appId }]
+      };
+
+      const { resources } = await container.items.query(querySpec).fetchAll();
+      const application = resources[0];
+
+      if (!application) {
+        response.status = 404;
+        response.messageDEV = "Aplicación no encontrada";
+        response.messageUSR = "<<ERROR>> La aplicación no existe (Cosmos SQL)";
+        response.dataRes = null;
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      // Hard delete: eliminación directa por ID
+      await container.item(application.id, application.APPID).delete();
+
+      response.messageUSR = "<<OK>> La aplicación fue eliminada permanentemente (Cosmos SQL)";
+      response.messageDEV = `Aplicación ${appId} eliminada correctamente de Cosmos DB`;
+      response.status = 200;
+      response.dataRes = { APPID: appId };
+
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+    } catch (err) {
+      response.status = err.code || 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudo eliminar la aplicación (Cosmos SQL)";
+      response.dataRes = err;
+      return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+    }
+  }
+}
+
+async function deleteHardViewMethod(bitacora, body, req) {
+  let response = DATA();
+  bitacora.process = "Eliminación permanente de vista";
+  response.process = bitacora.process;
+  response.method = "DELETE";
+  response.api = "/deleteHardView";
+
+  const dbServer = req.req.query?.dbServer;
+  const { appId, viewId } = body;
+
+  if (!appId || !viewId) {
+    response.status = 400;
+    response.messageDEV = "Parámetros appId y viewId son requeridos";
+    response.messageUSR = "<<ERROR>> Debe proporcionar el ID de la aplicación y de la vista";
+    return FAIL(AddMSG(bitacora, response, "FAIL", 400, true));
+  }
+
+  // --- MONGODB IMPLEMENTATION ---
+  if (dbServer === "MongoDB") {
+    try {
+      const app = await Application.findOne({ APPID: appId });
+
+      if (!app) {
+        response.status = 404;
+        response.messageDEV = "Aplicación no encontrada";
+        response.messageUSR = "<<ERROR>> La aplicación no existe";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      const viewIndex = app.VIEWS.findIndex(v => v.VIEWSID === viewId);
+      if (viewIndex === -1) {
+        response.status = 404;
+        response.messageDEV = "Vista no encontrada en la aplicación";
+        response.messageUSR = "<<ERROR>> La vista especificada no existe en la aplicación";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      // Eliminar la vista del arreglo
+      app.VIEWS.splice(viewIndex, 1);
+      await app.save();
+
+      response.status = 200;
+      response.messageUSR = "<<OK>> La vista fue eliminada permanentemente";
+      response.dataRes = app.toObject();
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+
+    } catch (err) {
+      response.status = 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudo eliminar la vista";
+      return FAIL(AddMSG(bitacora, response, "FAIL", 500, true));
+    }
+  }
+
+  // --- COSMOSDB IMPLEMENTATION ---
+  else {
+    try {
+      const container = getDatabase().container("ZTAPPLICATION");
+
+      const querySpec = {
+        query: "SELECT TOP 1 c.* FROM c WHERE c.APPID = @appId",
+        parameters: [{ name: "@appId", value: appId }]
+      };
+
+      const { resources } = await container.items.query(querySpec).fetchAll();
+      const app = resources[0];
+
+      if (!app) {
+        response.status = 404;
+        response.messageDEV = "Aplicación no encontrada (CosmosDB)";
+        response.messageUSR = "<<ERROR>> La aplicación no existe";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      const viewIndex = app.VIEWS.findIndex(v => v.VIEWSID === viewId);
+      if (viewIndex === -1) {
+        response.status = 404;
+        response.messageDEV = "Vista no encontrada en la aplicación (CosmosDB)";
+        response.messageUSR = "<<ERROR>> La vista especificada no existe";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      // Eliminar la vista del arreglo
+      app.VIEWS.splice(viewIndex, 1);
+
+      const { resource: updatedApp } = await container.items.upsert(app);
+
+      response.status = 200;
+      response.messageUSR = "<<OK>> La vista fue eliminada permanentemente (CosmosDB)";
+      response.dataRes = updatedApp;
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+
+    } catch (err) {
+      response.status = 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudo eliminar la vista (CosmosDB)";
+      response.dataRes = err;
+      return FAIL(AddMSG(bitacora, response, "FAIL", 500, true));
+    }
+  }
+}
+
+async function deleteHardProcessMethod(bitacora, appId, viewId, processId, req) {
+  
+  let response = DATA();
+  bitacora.process = "Eliminación permanente de proceso";
+  response.process = bitacora.process;
+  response.method = "DELETE";
+  response.api = "/deleteHardProcess";
+
+  const dbServer =
+  req.req?.query?.dbServer ||
+  req.req?.query?.DBServer ||
+  req.query?.dbServer ||
+  req.query?.DBServer ||
+  'MongoDB'; // valor por defecto opcional
+
+
+
+  if (!appId || !viewId || !processId) {
+    response.status = 400;
+    response.messageDEV = "Parámetros appId, viewId y processId son requeridos";
+    response.messageUSR = "<<ERROR>> Debe proporcionar el ID de la aplicación, la vista y el proceso";
+    return FAIL(AddMSG(bitacora, response, "FAIL", 400, true));
+  }
+
+  // --- MONGODB IMPLEMENTATION ---
+  if (dbServer === "MongoDB") {
+    try {
+      const app = await Application.findOne({ APPID: appId });
+
+      if (!app) {
+        response.status = 404;
+        response.messageDEV = "Aplicación no encontrada";
+        response.messageUSR = "<<ERROR>> La aplicación no existe";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      const view = app.VIEWS.find(v => v.VIEWSID === viewId);
+      if (!view) {
+        response.status = 404;
+        response.messageDEV = "Vista no encontrada en la aplicación";
+        response.messageUSR = "<<ERROR>> La vista especificada no existe en la aplicación";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      const processIndex = view.PROCESS.findIndex(p => p.PROCESSID === processId);
+      if (processIndex === -1) {
+        response.status = 404;
+        response.messageDEV = "Proceso no encontrado en la vista";
+        response.messageUSR = "<<ERROR>> El proceso especificado no existe en la vista";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      // Eliminar el proceso del arreglo
+      view.PROCESS.splice(processIndex, 1);
+      await app.save();
+
+      response.status = 200;
+      response.messageUSR = "<<OK>> El proceso fue eliminado permanentemente";
+      response.dataRes = app.toObject();
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+
+    } catch (err) {
+      response.status = 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudo eliminar el proceso";
+      return FAIL(AddMSG(bitacora, response, "FAIL", 500, true));
+    }
+  }
+
+  // --- COSMOSDB IMPLEMENTATION ---
+  else {
+    try {
+      const container = getDatabase().container("ZTAPPLICATION");
+
+      const querySpec = {
+        query: "SELECT TOP 1 c.* FROM c WHERE c.APPID = @appId",
+        parameters: [{ name: "@appId", value: appId }]
+      };
+
+      const { resources } = await container.items.query(querySpec).fetchAll();
+      const app = resources[0];
+
+      if (!app) {
+        response.status = 404;
+        response.messageDEV = "Aplicación no encontrada (CosmosDB)";
+        response.messageUSR = "<<ERROR>> La aplicación no existe";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      const view = app.VIEWS.find(v => v.VIEWSID === viewId);
+      if (!view) {
+        response.status = 404;
+        response.messageDEV = "Vista no encontrada (CosmosDB)";
+        response.messageUSR = "<<ERROR>> La vista especificada no existe en la aplicación";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      const processIndex = view.PROCESS.findIndex(p => p.PROCESSID === processId);
+      if (processIndex === -1) {
+        response.status = 404;
+        response.messageDEV = "Proceso no encontrado (CosmosDB)";
+        response.messageUSR = "<<ERROR>> El proceso especificado no existe en la vista";
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      // Eliminar el proceso del arreglo
+      view.PROCESS.splice(processIndex, 1);
+
+      const { resource: updatedApp } = await container.items.upsert(app);
+
+      response.status = 200;
+      response.messageUSR = "<<OK>> El proceso fue eliminado permanentemente (CosmosDB)";
+      response.dataRes = updatedApp;
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+
+    } catch (err) {
+      response.status = 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudo eliminar el proceso (CosmosDB)";
+      response.dataRes = err;
+      return FAIL(AddMSG(bitacora, response, "FAIL", 500, true));
+    }
+  }
+}
+
+
 
 module.exports = {
   crudApplication
