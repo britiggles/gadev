@@ -91,6 +91,19 @@ async function crudApplication(req) {
         bitacora = await deleteHardProcessMethod(bitacora, body.appId, body.viewId, body.processId, req);
         break;
 
+      case "getAplications":
+        bitacora = await getAplicationsMethod(bitacora, req);
+        break;
+
+      case "getAplicationID":
+        bitacora = await getAplicationIDMethod(bitacora, body.appId, req);
+        break;
+
+      case "getAplicationProcess":
+        bitacora = await getAplicationProcessMethod(bitacora, body.appId,req);
+        break;
+
+
       default:
         data.status = 400;
         data.messageDEV = `Proceso no reconocido: ${ProcessType}`;
@@ -1116,6 +1129,244 @@ async function deleteHardProcessMethod(bitacora, appId, viewId, processId, req) 
     }
   }
 }
+
+
+async function getAplicationsMethod(bitacora, req) {
+
+  let response = DATA();
+  bitacora.process = "Consulta de todas las Aplicaciones";
+  response.process = bitacora.process;
+  response.method = "GET";
+  response.api = "/getAplications";
+
+  const dbServer = req.req.query?.dbserver;
+
+   if (dbServer === "MongoDB") {
+    try {
+      const applications = await Application.find().lean();
+
+      if (!applications || applications.length === 0) {
+        response.status = 404;
+        response.messageDEV = "No se encontraron aplicaciones en MongoDB";
+        response.messageUSR = "<<ERROR>> No existen aplicaciones registradas";
+        response.dataRes = [];
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      response.status = 200;
+      response.messageDEV = "Consulta de aplicaciones realizada correctamente (MongoDB)";
+      response.messageUSR = "<<OK>> Aplicaciones obtenidas correctamente";
+      response.dataRes = applications;
+
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+
+    } catch (err) {
+      response.status = err.status || 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudieron obtener las aplicaciones (MongoDB)";
+      response.dataRes = err;
+      return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+    }
+
+  } else {
+    // Caso para Azure Cosmos DB
+    try {
+      const container = getDatabase().container("ZTAPPLICATION");
+      const querySpec = {
+        query: "SELECT * FROM c"
+      };
+
+      const { resources } = await container.items.query(querySpec).fetchAll();
+
+      if (!resources || resources.length === 0) {
+        response.status = 404;
+        response.messageDEV = "No se encontraron aplicaciones (Cosmos SQL)";
+        response.messageUSR = "<<ERROR>> No existen aplicaciones registradas (Cosmos SQL)";
+        response.dataRes = [];
+        return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+      }
+
+      response.status = 200;
+      response.messageDEV = "Consulta de aplicaciones realizada correctamente (Cosmos SQL)";
+      response.messageUSR = "<<OK>> Aplicaciones obtenidas correctamente (Cosmos SQL)";
+      response.dataRes = resources;
+
+      return OK(AddMSG(bitacora, response, "OK", 200, true));
+
+    } catch (err) {
+      response.status = err.code || 500;
+      response.messageDEV = err.message || err;
+      response.messageUSR = "<<ERROR>> No se pudieron obtener las aplicaciones (Cosmos SQL)";
+      response.dataRes = err;
+      return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+    }
+  }
+  
+}
+
+
+async function getAplicationIDMethod(bitacora, appId, req) {
+  let response = DATA();
+  bitacora.process = "Consulta de aplicación por ID";
+  response.process = bitacora.process;
+  response.method = "GET";
+  response.api = "/getAplicationID";
+
+  const dbServer = req.req.query?.dbserver;
+
+  if (dbServer === "MongoDB") {
+    return Application.findOne({ APPID: appId })
+      .then(application => {
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = `Aplicación con APPID ${appId} no encontrada (MongoDB)`;
+          response.messageUSR = "<<ERROR>> La aplicación solicitada no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        response.status = 200;
+        response.messageDEV = `Consulta de aplicación ${appId} realizada correctamente (MongoDB)`;
+        response.messageUSR = "<<OK>> Aplicación obtenida correctamente";
+        response.dataRes = application.toObject();
+        return OK(AddMSG(bitacora, response, "OK", 200, true));
+      })
+      .catch(err => {
+        response.status = err.status || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo obtener la aplicación (MongoDB)";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+
+  } else {
+    const container = getDatabase().container("ZTAPPLICATION");
+    const querySpec = {
+      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      parameters: [{ name: "@appId", value: appId }]
+    };
+
+    return container.items.query(querySpec).fetchAll()
+      .then(res => {
+        const application = res.resources[0];
+
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = `Aplicación con APPID ${appId} no encontrada (Cosmos SQL)`;
+          response.messageUSR = "<<ERROR>> La aplicación solicitada no existe (Cosmos SQL)";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        response.status = 200;
+        response.messageDEV = `Consulta de aplicación ${appId} realizada correctamente (Cosmos SQL)`;
+        response.messageUSR = "<<OK>> Aplicación obtenida correctamente (Cosmos SQL)";
+        response.dataRes = application;
+        return OK(AddMSG(bitacora, response, "OK", 200, true));
+      })
+      .catch(err => {
+        response.status = err.code || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo obtener la aplicación (Cosmos SQL)";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+  }
+}
+
+
+async function getAplicationProcessMethod(bitacora, appId, req) {
+  let response = DATA();
+  bitacora.process = "Consulta de procesos por aplicación";
+  response.process = bitacora.process;
+  response.method = "GET";
+  response.api = "/getAplicationProcess";
+
+  const dbServer = req.query?.dbserver || req.req.query?.dbserver;
+
+  if (dbServer === "MongoDB") {
+    return Application.findOne({ APPID: appId })
+      .then(application => {
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = `Aplicación con APPID ${appId} no encontrada (MongoDB)`;
+          response.messageUSR = "<<ERROR>> La aplicación solicitada no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        // Aplanar los procesos de todas las vistas
+        const applicationProcesses = [];
+        application.VIEWS.forEach(view => {
+          view.PROCESS.forEach(proc => {
+            applicationProcesses.push({
+              viewId: view.VIEWSID,
+              processId: proc.PROCESSID
+            });
+          });
+        });
+
+        response.status = 200;
+        response.messageDEV = `Procesos de la aplicación ${appId} obtenidos correctamente (MongoDB)`;
+        response.messageUSR = "<<OK>> Procesos obtenidos correctamente";
+        response.dataRes = applicationProcesses;
+        return OK(AddMSG(bitacora, response, "OK", 200, true));
+      })
+      .catch(err => {
+        response.status = err.status || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo obtener los procesos (MongoDB)";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+
+  } else {
+    const container = getDatabase().container("ZTAPPLICATION");
+    const querySpec = {
+      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      parameters: [{ name: "@appId", value: appId }]
+    };
+
+    return container.items.query(querySpec).fetchAll()
+      .then(res => {
+        const application = res.resources[0];
+
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = `Aplicación con APPID ${appId} no encontrada (Cosmos SQL)`;
+          response.messageUSR = "<<ERROR>> La aplicación solicitada no existe (Cosmos SQL)";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        // Aplanar los procesos de todas las vistas
+        const applicationProcesses = [];
+        application.VIEWS.forEach(view => {
+          view.PROCESS.forEach(proc => {
+            applicationProcesses.push({
+              viewId: view.VIEWSID,
+              processId: proc.PROCESSID
+            });
+          });
+        });
+
+        response.status = 200;
+        response.messageDEV = `Procesos de la aplicación ${appId} obtenidos correctamente (Cosmos SQL)`;
+        response.messageUSR = "<<OK>> Procesos obtenidos correctamente (Cosmos SQL)";
+        response.dataRes = applicationProcesses;
+        return OK(AddMSG(bitacora, response, "OK", 200, true));
+      })
+      .catch(err => {
+        response.status = err.code || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo obtener los procesos (Cosmos SQL)";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+  }
+}
+
+
 
 
 
