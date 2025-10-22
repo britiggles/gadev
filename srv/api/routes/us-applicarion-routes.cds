@@ -9,5 +9,5 @@ service ApplicationCrud @(path:'/api/application/') {
 
   @Core.Description: 'CRUD dispatcher'
   @path: 'crud'
-  action crud(ProcessType: String, dbServer: String, appId: String, viewId: String, processId: String, data: Map) returns ZTAPPLICATION;
+  action crud( appId: String, viewId: String, processId: String, data: Map) returns ZTAPPLICATION;
 }
