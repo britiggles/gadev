@@ -8,11 +8,9 @@ entity ZTAPPLICATION {
             VIEWSID : String;
             PROCESS : array of {
                 PROCESSID : String;
-
                 PRIVILEGE : array of {
                     PRIVILEGEID : String;
                 };
-
             };
         };
         DETAIL_ROW  : {
