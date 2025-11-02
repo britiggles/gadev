@@ -1273,7 +1273,7 @@ async function getAplicationIDMethod(bitacora, appId, req) {
   }
 }
 
-//pero oye mi ramaaa
+
 async function getAplicationProcessMethod(bitacora, appId, req) {
   let response = DATA();
   bitacora.process = "Consulta de procesos por aplicación";

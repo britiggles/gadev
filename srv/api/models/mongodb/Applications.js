@@ -3,7 +3,12 @@ const mongoose = require('mongoose');
 
 // Sub-schema para los procesos dentro de una vista
 const processSchema = new mongoose.Schema({
-    PROCESSID: { type: String, required: true }
+    PROCESSID: { type: String, required: true },
+    PRIVILEGE: [
+        {
+            PRIVILEGEID: { type: String, required: true },
+        },
+    ]
 }, { _id: false }); // _id: false evita que Mongoose cree un ObjectId para cada proceso
 
 // Sub-schema para el log de auditoría (tu DETAIL_ROW_REG)
