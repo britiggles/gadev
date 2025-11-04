@@ -189,8 +189,9 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
     const bitacora = BITACORA();
     bitacora.loggedUser = loggedUser;
     bitacora.process = `${processType} - Actualizar un Usuario`;
+
     let dataPaso = DATA();
-    dataPaso.process = `Actualizacion de un usuario en ${dbServer}`; // Mensaje dinámico
+    dataPaso.process = `Actualización de un usuario en ${dbServer}`;
     dataPaso.method = "PUT";
     dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
     dataPaso.dataReq = { processType, dbServer, loggedUser, data };
@@ -198,74 +199,65 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
     try {
         const { USERID } = data;
 
-        // 1. Validar que el USERID venga en la data (común para ambas DB)
+        // 1. Validar que el USERID venga en la data
         if (!USERID) {
             dataPaso.messageDEV = "El campo 'USERID' es requerido para actualizar.";
             dataPaso.messageUSR = "No se proporcionó el identificador del usuario.";
-            // ... (código de error)
             AddMSG(bitacora, dataPaso, "FAIL", 400);
             return FAIL(bitacora);
         }
 
-        let updatedUsuario; // Variable para almacenar el resultado
+        let updatedUsuario;
 
         // 2. Lógica separada por tipo de base de datos
         if (dbServer === "MongoDB") {
             // --- LÓGICA PARA MONGODB ---
-            updatedUsuario = await Usuario.findOneAndUpdate({ USERID: USERID }, data, {
-                new: true,
-            });
+            updatedUsuario = await Usuario.findOneAndUpdate(
+                { USERID: USERID },
+                data,
+                { new: true }
+            );
             if (updatedUsuario) {
-                updatedUsuario = updatedUsuario.toObject(); // Convertir a objeto plano
+                updatedUsuario = updatedUsuario.toObject();
             }
         } else {
-
+            // --- LÓGICA PARA AZURE COSMOS DB ---
             const conta = getDatabase().container("ZTUSERS");
 
+            // Buscar el usuario existente
             const querySpec = {
                 query: "SELECT * FROM c WHERE c.USERID = @userId",
-                parameters: [
-                    {
-                        name: "@userId",
-                        value: USERID,
-                    },
-                ],
+                parameters: [{ name: "@userId", value: USERID }],
             };
 
-            const { resources: items } = await conta.items
-                .query(querySpec)
-                .fetchAll();
+            const { resources: items } = await conta.items.query(querySpec).fetchAll();
 
             if (items.length === 0) {
                 updatedUsuario = null;
             } else {
                 const usuarioToUpdate = items[0];
-
                 const updatedData = { ...usuarioToUpdate, ...data };
 
-                // Reemplazamos/creamos el item con los datos actualizados
-                const { resource: replacedItem } = await conta.items
-                    .create(updatedData);
-                // Asignamos el objeto resultante a updatedUsuario para
-                // que la lógica posterior lo trate como éxito
+                // ⚠️ IMPORTANTE: usar replace, no create
+                const { resource: replacedItem } = await conta
+                    .item(usuarioToUpdate.id, usuarioToUpdate.USERID)
+                    .replace(updatedData);
+
                 updatedUsuario = replacedItem;
             }
         }
 
-        // 3. Manejar el caso si no se encuentra el usuario para actualizar
+        // 3. Validar si se encontró y actualizó
         if (!updatedUsuario) {
             dataPaso.messageDEV = `No se encontró un usuario con USERID: ${USERID}`;
             dataPaso.messageUSR = "El usuario que intenta actualizar no existe.";
-            // ... (código de error)
             AddMSG(bitacora, dataPaso, "FAIL", 404);
             return FAIL(bitacora);
         }
 
-        // 4. Éxito: El usuario fue actualizado
+        // 4. Éxito
         dataPaso.dataRes = updatedUsuario;
         dataPaso.messageUSR = "Usuario actualizado exitosamente.";
-
-        // ... (código de éxito)
         dataPaso.processType = processType;
         dataPaso.dbServer = dbServer;
         dataPaso.loggedUser = loggedUser;
@@ -275,11 +267,9 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
         AddMSG(bitacora, dataPaso, "OK", 200);
         return OK(bitacora);
     } catch (error) {
-        // El catch manejará errores de conexión o si el item no existe en Cosmos DB
+        // 5. Manejo de errores
         dataPaso.messageDEV = error.message;
         dataPaso.messageUSR = "No se pudo actualizar el usuario. Verifique que los datos sean correctos.";
-
-        // ... (código de error)
         dataPaso.processType = processType;
         dataPaso.dbServer = dbServer;
         dataPaso.loggedUser = loggedUser;
