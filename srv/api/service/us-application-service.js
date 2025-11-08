@@ -54,7 +54,7 @@ async function crudApplication(req) {
         break;
 
       case "addView":
-        bitacora = await addViewMethod(bitacora, body.appId, body.viewData, req);
+        bitacora = await addViewMethod(bitacora, body.appId, body.data, req);
         break;
 
       case "addProcess":
@@ -608,7 +608,7 @@ async function restoreApplicationMethod(bitacora, appId, req) {
 }
 
 // ➕ Añade una nueva vista a una aplicación
-async function addViewMethod(bitacora, appId, viewData, req) {
+async function addViewMethod(bitacora, appId, data, req) {
   let response = DATA();
   bitacora.process = "Añadir vista a aplicación";
   response.process = bitacora.process;
@@ -629,18 +629,18 @@ async function addViewMethod(bitacora, appId, viewData, req) {
         }
 
         application.VIEWS = application.VIEWS || [];
-        const viewExists = application.VIEWS.some(v => v.VIEWSID === viewData.VIEWSID);
+        const viewExists = application.VIEWS.some(v => v.VIEWSID === data.VIEWSID);
         if (viewExists) {
           response.status = 409;
-          response.messageDEV = `La vista con ID ${viewData.VIEWSID} ya existe`;
+          response.messageDEV = `La vista con ID ${data.VIEWSID} ya existe`;
           response.messageUSR = "<<ERROR>> Ya existe una vista con ese VIEWSID";
           response.dataRes = null;
           return FAIL(AddMSG(bitacora, response, "FAIL", 409, true));
         }
 
         const newView = {
-          VIEWSID: viewData.VIEWSID,
-          PROCESS: viewData.PROCESS || []
+          VIEWSID: data.VIEWSID,
+          PROCESS: data.PROCESS || []
         };
 
         application.VIEWS.push(newView);
@@ -678,18 +678,18 @@ async function addViewMethod(bitacora, appId, viewData, req) {
         }
 
         application.VIEWS = application.VIEWS || [];
-        const viewExists = application.VIEWS.some(v => v.VIEWSID === viewData.VIEWSID);
+        const viewExists = application.VIEWS.some(v => v.VIEWSID === data.VIEWSID);
         if (viewExists) {
           response.status = 409;
-          response.messageDEV = `La vista con ID ${viewData.VIEWSID} ya existe`;
+          response.messageDEV = `La vista con ID ${data.VIEWSID} ya existe`;
           response.messageUSR = "<<ERROR>> Ya existe una vista con ese VIEWSID";
           response.dataRes = null;
           return FAIL(AddMSG(bitacora, response, "FAIL", 409, true));
         }
 
         const newView = {
-          VIEWSID: viewData.VIEWSID,
-          PROCESS: viewData.PROCESS || []
+          VIEWSID: data.VIEWSID,
+          PROCESS: data.PROCESS || []
         };
 
         application.VIEWS.push(newView);
