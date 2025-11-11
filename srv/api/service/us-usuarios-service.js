@@ -413,6 +413,130 @@ async function removeUsuarioField(data, processType, dbServer, loggedUser) {
     }
 }
 
+async function assignRolToUsuario(body, processType, dbServer, loggedUser) {
+    const bitacora = BITACORA();
+    bitacora.process = `${processType} - Asignar Rol a Usuario`;
+    let dataPaso = DATA();
+    
+    // El frontend debe enviar USERID (del usuario) y ROLEID (del rol)
+    const { USERID, ROLEID } = body;
+
+    if (!USERID || !ROLEID) {
+        return AddMSG(
+            bitacora,
+            FAIL,
+            400,
+            "Faltan USERID o ROLEID en el body",
+            "Faltan parámetros para asignar el rol."
+        );
+    }
+
+    try {
+        bitacora.processType = processType;
+        bitacora.dbServer = dbServer;
+        const updatedUser = await Usuario.findOneAndUpdate(
+            { USERID: USERID }, // Condición de búsqueda
+            { 
+                $addToSet: { 
+                    ROLES: { ROLEID: ROLEID } 
+                },
+                // Actualiza los campos de auditoría
+                $set: {
+                    MODUSER: loggedUser,
+                    MODDATE: new Date(),
+                    MODTIME: new Date().toTimeString().split(' ')[0]
+                }
+            },
+            { new: true } // Devuelve el documento actualizado
+        );
+
+        if (!updatedUser) {
+            return AddMSG(
+                bitacora,
+                FAIL,
+                404,
+                `Usuario no encontrado con USERID: ${USERID}`,
+                "Usuario no encontrado."
+            );
+        }
+
+        dataPaso.dataRes = updatedUser;
+        return AddMSG(
+            bitacora,
+            OK,
+            200,
+            `Rol ${ROLEID} asignado a ${USERID}`,
+            "Rol asignado correctamente."
+        );
+        
+
+    } catch (error) {
+        dataPaso.messageDEV = error.message;
+        dataPaso.messageUSR = "Ocurrió un error al intentar asingar rol a un usuario.";
+        return AddMSG(bitacora, FAIL, 500, error.message, "Error en BD al asignar rol.");
+    }
+}
+
+async function unassignRolFromUsuario(body, processType, dbServer, loggedUser) {
+    const bitacora = BITACORA();
+    bitacora.process = `${processType} - Desasignar Rol de Usuario`;
+    let dataPaso = DATA();
+    
+    // Esperamos USERID (del usuario) y ROLEID (del rol a eliminar)
+    const { USERID, ROLEID } = body;
+
+    if (!USERID || !ROLEID) {
+        return AddMSG(
+            bitacora,
+            FAIL,
+            400,
+            "Faltan USERID o ROLEID en el body",
+            "Faltan parámetros para desasignar el rol."
+        );
+    }
+
+    try {
+        const updatedUser = await Usuario.findOneAndUpdate(
+            { USERID: USERID }, // Condición de búsqueda
+            { 
+                // $pull: Elimina todas las instancias que coincidan del array
+                $pull: { 
+                    ROLES: { ROLEID: ROLEID } 
+                },
+                // Actualiza los campos de auditoría
+                $set: {
+                    MODUSER: loggedUser,
+                    MODDATE: new Date(),
+                    MODTIME: new Date().toTimeString().split(' ')[0]
+                }
+            },
+            { new: true } // Devuelve el documento actualizado
+        );
+
+        if (!updatedUser) {
+            return AddMSG(
+                bitacora,
+                FAIL,
+                404,
+                `Usuario no encontrado con USERID: ${USERID}`,
+                "Usuario no encontrado."
+            );
+        }
+
+        dataPaso.dataRes = updatedUser;
+        return AddMSG(
+            bitacora,
+            OK,
+            200,
+            `Rol ${ROLEID} desasignado de ${USERID}`,
+            "Rol desasignado correctamente."
+        );
+
+    } catch (error) {
+        return AddMSG(bitacora, FAIL, 500, error.message, "Error en BD al desasignar rol.");
+    }
+}
+
 // Dispatcher centralizado
 async function crudUsuario(req) {
     let bitacora = BITACORA();
@@ -446,6 +570,12 @@ async function crudUsuario(req) {
             break;
         case "updateOne":
             bitacora = await UpdateUsuario(body, ProcessType, DBServer, LoggedUser);
+            break;
+        case "assignRol":
+            bitacora = await assignRolToUsuario(body, ProcessType, DBServer, LoggedUser);
+            break;
+        case "unassignRol":
+            bitacora = await unassignRolFromUsuario(body, ProcessType, DBServer, LoggedUser);
             break;
         default:
             data.status = 400;

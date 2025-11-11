@@ -34,6 +34,7 @@ service UsuariosList @(path: '/api/users/') {
         PHONENUMBER : String;
         EXTENSION : String;
         DETAIL_ROW : DetailRow;
+        ROLEID : String;
     }
 
 }

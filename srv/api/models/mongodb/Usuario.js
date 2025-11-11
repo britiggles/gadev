@@ -1,6 +1,13 @@
 //srv\api\models\mongodb\Usuario.js
 const mongoose = require('mongoose');
 
+const rolAsignadoSchema = new mongoose.Schema(
+    {
+        ROLEID: { type: String, required: true },
+    },
+    { _id: false } // No crear _id para cada sub-documento de rol
+);
+
 const usuariosSchema = new mongoose.Schema({
     USERID: {type: String, required: true, unique: true},
     USERNAME: {type: String, maxlength: 100},
@@ -16,6 +23,7 @@ const usuariosSchema = new mongoose.Schema({
     MODTIME: {type: String,default: () => new Date().toTimeString().split(' ')[0]}, // HH:MM:SS
     ACTIVED: {type: Boolean,default: true},
     DELETED: {type: Boolean,default: false},
+    ROLES: [rolAsignadoSchema],
     ALIAS: {type: String,maxlength: 50},
     PHONENUMBER: {type: String,maxlength: 50},
     EXTENSION: {type: String,maxlength: 20}
