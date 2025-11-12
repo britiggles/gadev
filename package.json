@@ -16,9 +16,8 @@
     "@cap-js/sqlite": "^2"
   },
   "scripts": {
-    "start": "cds-serve",
-  "dev": "cds watch",
-  "serve:mocks": "cds serve --with-mocks",
+    "start": "node server.js",
+    "dev": "cds watch",
     "build": "cds build"
   },
   "cds": {
