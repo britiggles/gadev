@@ -93,6 +93,8 @@ async function crudApplication(req) {
       case "deleteHardProcess":
         bitacora = await deleteHardProcessMethod(bitacora, body.appId, body.viewId, body.processId, req);
         break;
+      case "deleteHardPrivilege":
+        bitacora = await deletePrivilegeMethod(bitacora, body.appId, body.viewId, body.processId, body.data, req);
       case "getAplications":
         bitacora = await getAplicationsMethod(bitacora, req);
         break;
@@ -1280,6 +1282,156 @@ async function deleteHardProcessMethod(bitacora, appId, viewId, processId, req) 
       response.dataRes = err;
       return FAIL(AddMSG(bitacora, response, "FAIL", 500, true));
     }
+  }
+}
+
+async function deletePrivilegeMethod(bitacora, appId, viewId, processId, data, req) {
+  console.log("delete privilege");
+  let response = DATA();
+  bitacora.process = "Eliminar privilegio de proceso";
+  response.process = bitacora.process;
+  response.method = "DELETE";
+  response.api = "/deletePrivilege";
+
+  // Extraer el privilegeId desde data
+  const privilegeId = data?.privilegeId;
+
+  if (!privilegeId) {
+    response.status = 400;
+    response.messageDEV = "privilegeId es requerido";
+    response.messageUSR = "<<ERROR>> El ID del privilegio es obligatorio";
+    response.dataRes = null;
+    return FAIL(AddMSG(bitacora, response, "FAIL", 400, true));
+  }
+
+  const dbServer = req.req.query?.dbserver;
+
+  if (dbServer === "MongoDB") {
+    return Application.findOne({ APPID: appId })
+      .then(application => {
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = "Aplicación no encontrada";
+          response.messageUSR = "<<ERROR>> La aplicación no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const view = (application.VIEWS || []).find(v => v.VIEWSID === viewId);
+        if (!view) {
+          response.status = 404;
+          response.messageDEV = "Vista no encontrada";
+          response.messageUSR = "<<ERROR>> La vista no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const process = (view.PROCESS || []).find(p => p.PROCESSID === processId);
+        if (!process) {
+          response.status = 404;
+          response.messageDEV = "Proceso no encontrado";
+          response.messageUSR = "<<ERROR>> El proceso no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        process.PRIVILEGE = process.PRIVILEGE || [];
+
+        const index = process.PRIVILEGE.findIndex(p => p.PRIVILEGEID === privilegeId);
+        if (index === -1) {
+          response.status = 404;
+          response.messageDEV = `El privilegio con ID ${privilegeId} no existe`;
+          response.messageUSR = "<<ERROR>> El privilegio no se encuentra en este proceso";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        // Eliminar privilegio
+        process.PRIVILEGE.splice(index, 1);
+
+        return application.save()
+          .then(saved => {
+            response.status = 200;
+            response.messageDEV = "Privilegio eliminado correctamente";
+            response.messageUSR = "<<OK>> Privilegio eliminado correctamente";
+            response.dataRes = saved.toObject();
+            return OK(AddMSG(bitacora, response, "OK", 200, true));
+          });
+      })
+      .catch(err => {
+        response.status = err.status || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo eliminar el privilegio";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+
+  } else {
+    // COSMOS SQL
+    const container = getDatabase().container("ZTAPPLICATION");
+    const querySpec = {
+      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      parameters: [{ name: "@appId", value: appId }]
+    };
+
+    return container.items.query(querySpec).fetchAll()
+      .then(res => {
+        const application = res.resources[0];
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = "Aplicación no encontrada";
+          response.messageUSR = "<<ERROR>> La aplicación no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const view = (application.VIEWS || []).find(v => v.VIEWSID === viewId);
+        if (!view) {
+          response.status = 404;
+          response.messageDEV = "Vista no encontrada";
+          response.messageUSR = "<<ERROR>> La vista no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const process = (view.PROCESS || []).find(p => p.PROCESSID === processId);
+        if (!process) {
+          response.status = 404;
+          response.messageDEV = "Proceso no encontrado";
+          response.messageUSR = "<<ERROR>> El proceso no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        process.PRIVILEGE = process.PRIVILEGE || [];
+
+        const index = process.PRIVILEGE.findIndex(p => p.PRIVILEGEID === privilegeId);
+        if (index === -1) {
+          response.status = 404;
+          response.messageDEV = `El privilegio con ID ${privilegeId} no existe`;
+          response.messageUSR = "<<ERROR>> El privilegio no se encuentra en este proceso";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        process.PRIVILEGE.splice(index, 1);
+
+        return container.items.upsert(application)
+          .then(upsertRes => {
+            response.status = 200;
+            response.messageDEV = "Privilegio eliminado correctamente (Cosmos SQL)";
+            response.messageUSR = "<<OK>> Privilegio eliminado correctamente (Cosmos SQL)";
+            response.dataRes = upsertRes.resource;
+            return OK(AddMSG(bitacora, response, "OK", 200, true));
+          });
+      })
+      .catch(err => {
+        response.status = err.code || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo eliminar el privilegio (Cosmos SQL)";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
   }
 }
 
