@@ -60,6 +60,9 @@ async function crudApplication(req) {
       case "addProcess":
         bitacora = await addProcessMethod(bitacora, body.appId, body.viewId, body.processId, req);
         break;
+      case "addPrivilege":
+        bitacora = await addPrivilegeMethod(bitacora, body.appId, body.viewId, body.processId, body.data, req);
+        break;
 
       case "updateApp":
         bitacora = await updateApplicationMethod(bitacora, body.appId, body.data, req);
@@ -712,7 +715,7 @@ async function addViewMethod(bitacora, appId, data, req) {
   }
 }
 
-// ➕ Añade un nuevo proceso a una vista existente
+// Añade un nuevo proceso a una vista existente
 async function addProcessMethod(bitacora, appId, viewId, processId, req) {
   let response = DATA();
   bitacora.process = "Añadir proceso a vista";
@@ -824,6 +827,157 @@ async function addProcessMethod(bitacora, appId, viewId, processId, req) {
       });
   }
 }
+
+// Añade un privilegio a un proceso existente dentro de una vista
+async function addPrivilegeMethod(bitacora, appId, viewId, processId, data, req) {
+  console.log("hola")
+  let response = DATA();
+  bitacora.process = "Añadir privilegio a proceso";
+  response.process = bitacora.process;
+  response.method = "POST";
+  response.api = "/addPrivilege";
+
+  // Nuevo: extraer privilegeId desde data
+  const privilegeId = data?.privilegeId;
+
+  if (!privilegeId) {
+    response.status = 400;
+    response.messageDEV = "privilegeId es requerido";
+    response.messageUSR = "<<ERROR>> El ID del privilegio es obligatorio";
+    response.dataRes = null;
+    return FAIL(AddMSG(bitacora, response, "FAIL", 400, true));
+  }
+
+  const dbServer = req.req.query?.dbserver;
+
+  if (dbServer === "MongoDB") {
+    return Application.findOne({ APPID: appId })
+      .then(application => {
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = "Aplicación no encontrada";
+          response.messageUSR = "<<ERROR>> La aplicación no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const view = (application.VIEWS || []).find(v => v.VIEWSID === viewId);
+        if (!view) {
+          response.status = 404;
+          response.messageDEV = "Vista no encontrada";
+          response.messageUSR = "<<ERROR>> La vista no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const process = (view.PROCESS || []).find(p => p.PROCESSID === processId);
+        if (!process) {
+          response.status = 404;
+          response.messageDEV = "Proceso no encontrado";
+          response.messageUSR = "<<ERROR>> El proceso no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        process.PRIVILEGE = process.PRIVILEGE || [];
+        const privilegeExists = process.PRIVILEGE.some(p => p.PRIVILEGEID === privilegeId);
+
+        if (privilegeExists) {
+          response.status = 409;
+          response.messageDEV = `El privilegio con ID ${privilegeId} ya existe en el proceso`;
+          response.messageUSR = "<<ERROR>> El privilegio ya existe en este proceso";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 409, true));
+        }
+
+        process.PRIVILEGE.push({ PRIVILEGEID: privilegeId });
+
+        return application.save()
+          .then(saved => {
+            response.status = 201;
+            response.messageDEV = "Privilegio añadido correctamente";
+            response.messageUSR = "<<OK>> Privilegio añadido correctamente";
+            response.dataRes = saved.toObject();
+            return OK(AddMSG(bitacora, response, "OK", 201, true));
+          });
+      })
+      .catch(err => {
+        response.status = err.status || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo añadir el privilegio";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+
+  } else {
+    // COSMOS SQL
+    const container = getDatabase().container("ZTAPPLICATION");
+    const querySpec = {
+      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      parameters: [{ name: "@appId", value: appId }]
+    };
+
+    return container.items.query(querySpec).fetchAll()
+      .then(res => {
+        const application = res.resources[0];
+        if (!application) {
+          response.status = 404;
+          response.messageDEV = "Aplicación no encontrada";
+          response.messageUSR = "<<ERROR>> La aplicación no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const view = (application.VIEWS || []).find(v => v.VIEWSID === viewId);
+        if (!view) {
+          response.status = 404;
+          response.messageDEV = "Vista no encontrada";
+          response.messageUSR = "<<ERROR>> La vista no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        const process = (view.PROCESS || []).find(p => p.PROCESSID === processId);
+        if (!process) {
+          response.status = 404;
+          response.messageDEV = "Proceso no encontrado";
+          response.messageUSR = "<<ERROR>> El proceso no existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
+        }
+
+        process.PRIVILEGE = process.PRIVILEGE || [];
+        const privilegeExists = process.PRIVILEGE.some(p => p.PRIVILEGEID === privilegeId);
+
+        if (privilegeExists) {
+          response.status = 409;
+          response.messageDEV = `El privilegio con ID ${privilegeId} ya existe en el proceso`;
+          response.messageUSR = "<<ERROR>> El privilegio ya existe";
+          response.dataRes = null;
+          return FAIL(AddMSG(bitacora, response, "FAIL", 409, true));
+        }
+
+        process.PRIVILEGE.push({ PRIVILEGEID: privilegeId });
+
+        return container.items.upsert(application)
+          .then(upsertRes => {
+            response.status = 201;
+            response.messageDEV = "Privilegio añadido correctamente (Cosmos SQL)";
+            response.messageUSR = "<<OK>> Privilegio añadido correctamente (Cosmos SQL)";
+            response.dataRes = upsertRes.resource;
+            return OK(AddMSG(bitacora, response, "OK", 201, true));
+          });
+      })
+      .catch(err => {
+        response.status = err.code || 500;
+        response.messageDEV = err.message || err;
+        response.messageUSR = "<<ERROR>> No se pudo añadir el privilegio (Cosmos SQL)";
+        response.dataRes = err;
+        return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
+      });
+  }
+}
+
 
 
 //deletes
@@ -1140,7 +1294,7 @@ async function getAplicationsMethod(bitacora, req) {
 
   const dbServer = req.req.query?.dbserver;
 
-   if (dbServer === "MongoDB") {
+  if (dbServer === "MongoDB") {
     try {
       const applications = await Application.find().lean();
 
@@ -1200,7 +1354,7 @@ async function getAplicationsMethod(bitacora, req) {
       return FAIL(AddMSG(bitacora, response, "FAIL", response.status, true));
     }
   }
-  
+
 }
 
 
