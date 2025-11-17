@@ -5,22 +5,22 @@
   "private": true,
   "dependencies": {
     "@azure/cosmos": "^4.6.0",
+    "@cap-js/sqlite": "^2.0.4",
     "@dotenvx/dotenvx": "^1.51.0",
-    "@sap/cds": "^9",
+    "@sap/cds": "^9.4.4",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "mongoose": "^8.18.3",
-    "@cap-js/sqlite": "^2"
+    "mongoose": "^8.18.3"
   },
   "devDependencies": {
     "@cap-js/cds-types": "0.14.0"
   },
   "scripts": {
-  "start": "node_modules/.bin/cds run",
-  "dev": "node_modules/.bin/cds watch",
-  "serve:mocks": "node_modules/.bin/cds serve --with-mocks",
-  "build": "node_modules/.bin/cds build"
-},
+    "start": "cds run",
+    "dev": "cds watch",
+    "serve:mocks": "cds serve --with-mocks",
+    "build": "cds build"
+  },
   "engines": {
     "node": "20.x"
   },
