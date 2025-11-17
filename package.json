@@ -31,9 +31,6 @@
       "srv": "srv/api/routes"
     },
     "requires": {
-      "db": {
-        "kind": "sqlite"
-      },
       "auth": {
         "kind": "mocked"
       },
