@@ -31,6 +31,7 @@
       "srv": "srv/api/routes"
     },
     "requires": {
+      "db": false,
       "auth": {
         "kind": "mocked"
       },
