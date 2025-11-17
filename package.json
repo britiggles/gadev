@@ -16,11 +16,11 @@
     "@cap-js/cds-types": "0.14.0"
   },
   "scripts": {
-    "start": "cds run",
-    "dev": "cds watch",
-    "serve:mocks": "cds serve --with-mocks",
-    "build": "cds build"
-  },
+  "start": "node_modules/.bin/cds run",
+  "dev": "node_modules/.bin/cds watch",
+  "serve:mocks": "node_modules/.bin/cds serve --with-mocks",
+  "build": "node_modules/.bin/cds build"
+},
   "engines": {
     "node": "20.x"
   },
