@@ -5,21 +5,22 @@
   "private": true,
   "dependencies": {
     "@azure/cosmos": "^4.6.0",
+    "@cap-js/sqlite": "^2.0.4",
     "@dotenvx/dotenvx": "^1.51.0",
-    "@sap/cds": "^9",
+    "@sap/cds": "^9.4.4",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "mongoose": "^8.18.3",
-    "@cap-js/sqlite": "^2"
+    "mongoose": "^8.18.3"
   },
   "devDependencies": {
-    "@cap-js/cds-types": "0.14.0"
+    "@cap-js/cds-types": "0.14.0",
+    "@sap/cds-dk": "^9.4.3"
   },
   "scripts": {
-    "start": "npx cds run",
-    "dev": "npx cds watch",
-    "serve:mocks": "npx cds serve --with-mocks",
-    "build": "npx cds build"
+    "start": "cds run",
+    "dev": "cds watch",
+    "serve:mocks": "cds serve --with-mocks",
+    "build": "cds build"
   },
   "engines": {
     "node": "20.x"
@@ -30,6 +31,10 @@
       "srv": "srv/api/routes"
     },
     "requires": {
+      "db": false,
+      "auth": {
+        "kind": "mocked"
+      },
       "impl": "srv/api/controller/us-usuarios-controller.js"
     },
     "serve": {
