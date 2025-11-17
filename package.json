@@ -31,6 +31,9 @@
       "srv": "srv/api/routes"
     },
     "requires": {
+      "db": {
+        "kind": "sqlite"
+      },
       "impl": "srv/api/controller/us-usuarios-controller.js"
     },
     "serve": {
