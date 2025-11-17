@@ -17,7 +17,7 @@
     "@sap/cds-dk": "^9.4.3"
   },
   "scripts": {
-    "start": "node srv/server.js",
+    "start": "cds run",
     "dev": "cds watch",
     "serve:mocks": "cds serve --with-mocks",
     "build": "cds build"
