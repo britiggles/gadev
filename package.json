@@ -13,7 +13,8 @@
     "mongoose": "^8.18.3"
   },
   "devDependencies": {
-    "@cap-js/cds-types": "0.14.0"
+    "@cap-js/cds-types": "0.14.0",
+    "@sap/cds-dk": "^9.4.3"
   },
   "scripts": {
     "start": "node srv/server.js",
