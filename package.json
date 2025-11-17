@@ -16,7 +16,7 @@
     "@cap-js/cds-types": "0.14.0"
   },
   "scripts": {
-    "start": "cds run",
+    "start": "node srv/server.js",
     "dev": "cds watch",
     "serve:mocks": "cds serve --with-mocks",
     "build": "cds build"
