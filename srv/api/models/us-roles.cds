@@ -1,7 +1,7 @@
 namespace rol;
 
 entity ZTROL {
-    ROLEID      : String;
+    key ROLEID      : String;
     ROLENAME    : String;
     DESCRIPTION : String;
     PROCESS     : array of {
