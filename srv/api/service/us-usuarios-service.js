@@ -1,4 +1,19 @@
 const mongoose = require("mongoose");
+// Elimina todas las propiedades _id de un objeto y sub-objetos
+function removeMongoIds(obj) {
+    if (Array.isArray(obj)) {
+        return obj.map(removeMongoIds);
+    } else if (obj && typeof obj === 'object') {
+        const newObj = {};
+        for (const key in obj) {
+            if (key !== '_id') {
+                newObj[key] = removeMongoIds(obj[key]);
+            }
+        }
+        return newObj;
+    }
+    return obj;
+}
 const { getDatabase } = require("../../config/connectToCosmosDB.js");
 const Usuario = require("../models/mongodb/Usuario.js");
 const {
@@ -16,13 +31,13 @@ async function connectDB(DBServer) {
             case "MongoDB":
                 if (mongoose.connection.readyState === 0) {
                     await mongoose.connect(process.env.MONGO_URI);
-                    console.log("✅ Conectado a MongoDB local.");
+                    console.log(" Conectado a MongoDB local.");
                 }
                 break;
 
             case "AZURECOSMOS":
                 console.log(
-                    "✅ CosmosDB ya está conectado desde el archivo de config."
+                    " CosmosDB ya está conectado desde el archivo de config."
                 );
                 break;
 
@@ -30,7 +45,7 @@ async function connectDB(DBServer) {
                 throw new Error(`DBServer no reconocido: ${DBServer}`);
         }
     } catch (error) {
-        console.error(`❌ Error al conectar a ${DBServer}:`, error.message);
+        console.error(` Error al conectar a ${DBServer}:`, error.message);
         throw error;
     }
 }
@@ -147,17 +162,19 @@ async function postUsuario(data, processType, dbServer, loggedUser) {
     dataPaso.dataReq = { processType, dbServer, loggedUser, data };
     try {
         let usuarioRes;
+        // Limpiar _id antes de guardar
+        const cleanData = removeMongoIds(data);
         if (dbServer === "MongoDB") {
-            const newUsuario = new Usuario(data);
+            const newUsuario = new Usuario(cleanData);
             usuarioRes = await newUsuario.save();
             usuarioRes = usuarioRes.toObject();
         } else {
             // Cosmos requiere que cada item tenga un "id"
-            if (!data.id) {
-                data.id = data.USERID;
+            if (!cleanData.id) {
+                cleanData.id = cleanData.USERID;
             }
             const conta = getDatabase().container("ZTUSERS");
-            const { resources } = await conta.items.create(data);
+            const { resources } = await conta.items.create(cleanData);
             usuarioRes = resources;
         }
         dataPaso.dataRes = usuarioRes;
@@ -208,13 +225,14 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
         }
 
         let updatedUsuario;
-
+        // Limpiar _id antes de actualizar
+        const cleanData = removeMongoIds(data);
         // 2. Lógica separada por tipo de base de datos
         if (dbServer === "MongoDB") {
             // --- LÓGICA PARA MONGODB ---
             updatedUsuario = await Usuario.findOneAndUpdate(
                 { USERID: USERID },
-                data,
+                cleanData,
                 { new: true }
             );
             if (updatedUsuario) {
@@ -236,7 +254,7 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
                 updatedUsuario = null;
             } else {
                 const usuarioToUpdate = items[0];
-                const updatedData = { ...usuarioToUpdate, ...data };
+                const updatedData = { ...usuarioToUpdate, ...cleanData };
 
                 // ⚠️ IMPORTANTE: usar replace, no create
                 const { resource: replacedItem } = await conta
