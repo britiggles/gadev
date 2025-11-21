@@ -26,7 +26,8 @@ const usuariosSchema = new mongoose.Schema({
     ROLES: [rolAsignadoSchema],
     ALIAS: {type: String,maxlength: 50},
     PHONENUMBER: {type: String,maxlength: 50},
-    EXTENSION: {type: String,maxlength: 20}
+    EXTENSION: {type: String,maxlength: 20},
+    PROFILE_PIC_URL: {type: String, maxlength: 512} // URL de foto de perfil
     ,
     // Subdocumento para metadata consistente con el modelo CDS
     DETAIL_ROW: {
