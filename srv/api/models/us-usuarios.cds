@@ -13,6 +13,7 @@ entity ZTUSERS {
         PHONENUMBER : String(50);
         EXTENSION   : String(20);
         PROFILE_PIC_URL : String(512); // URL de foto de perfil
+        BIRTHDATE   : Date; // Fecha de cumpleaños
         ROLES       : array of {
             ROLEID : String;
         };

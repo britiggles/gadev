@@ -27,7 +27,8 @@ const usuariosSchema = new mongoose.Schema({
     ALIAS: {type: String,maxlength: 50},
     PHONENUMBER: {type: String,maxlength: 50},
     EXTENSION: {type: String,maxlength: 20},
-    PROFILE_PIC_URL: {type: String, maxlength: 512} // URL de foto de perfil
+    PROFILE_PIC_URL: {type: String, maxlength: 512}, // URL de foto de perfil
+    BIRTHDATE: {type: Date} // Fecha de cumpleaños
     ,
     // Subdocumento para metadata consistente con el modelo CDS
     DETAIL_ROW: {
