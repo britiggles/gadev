@@ -804,6 +804,7 @@ async function crudRol(req) {
       );
       break;
     case "postRol":
+      const dataToCreate = body.rol ? body.rol : body;
       bitacora = await postRol(body, ProcessType, DBServer, LoggedUser);
       break;
     case "addProcessRol":
@@ -822,6 +823,7 @@ async function crudRol(req) {
       bitacora = await removePrivilege(body, ProcessType, DBServer, LoggedUser);
       break;
     case "updateOne":
+      const dataToUpdate = body.rol ? body.rol : body;
       bitacora = await UpdateRol(body, ProcessType, DBServer, LoggedUser);
       break;
     default:
