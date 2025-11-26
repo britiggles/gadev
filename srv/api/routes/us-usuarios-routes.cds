@@ -25,6 +25,7 @@ service UsuariosList @(path: '/api/users/') {
 
     type UsuarioInput {
         USERID : String;
+        ORIGINAL_USERID : String;
         USERNAME : String;
         COMPANYID : Integer;
         CEDIID : Integer;
@@ -34,7 +35,9 @@ service UsuariosList @(path: '/api/users/') {
         PHONENUMBER : String;
         EXTENSION : String;
         PROFILE_PIC_URL : String;
-        BIRTHDATE : Date;
+        BIRTHDATE : String;
+        ACTIVED : Boolean;
+        DELETED : Boolean;
         DETAIL_ROW : DetailRow;
         ROLES : array of {
             ROLEID : String;
