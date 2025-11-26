@@ -49,6 +49,22 @@ function normalizeBirthdate(value) {
     return date.toISOString().slice(0, 10);
 }
 
+function normalizeDetailRow(user) {
+    if (!user || typeof user !== "object") {
+        return;
+    }
+    var source = user.DETAIL_ROW && typeof user.DETAIL_ROW === "object" ? user.DETAIL_ROW : {};
+    var isActive = Object.prototype.hasOwnProperty.call(source, "ACTIVED") ? !!source.ACTIVED : true;
+    var detailRow = {
+        ACTIVED: isActive,
+        DELETED: !isActive,
+        DETAIL_ROW_REG: Array.isArray(source.DETAIL_ROW_REG) ? source.DETAIL_ROW_REG : []
+    };
+    user.DETAIL_ROW = detailRow;
+    user.ACTIVED = detailRow.ACTIVED;
+    user.DELETED = detailRow.DELETED;
+}
+
 //conexion al container (como coleccion en mongoDB)
 async function connectDB(DBServer) {
     try {
@@ -193,6 +209,7 @@ async function postUsuario(data, processType, dbServer, loggedUser) {
         } else {
             delete payload.BIRTHDATE;
         }
+        normalizeDetailRow(payload);
         let usuarioRes;
         if (dbServer === "MongoDB") {
             const newUsuario = new Usuario(payload);
@@ -273,6 +290,7 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
         } else {
             delete updatePayload.BIRTHDATE;
         }
+        normalizeDetailRow(updatePayload);
         delete updatePayload.ORIGINAL_USERID;
         delete updatePayload._id;
 

@@ -35,6 +35,8 @@ service UsuariosList @(path: '/api/users/') {
         PHONENUMBER : String;
         EXTENSION : String;
         BIRTHDATE : String;
+        ACTIVED : Boolean;
+        DELETED : Boolean;
         DETAIL_ROW : DetailRow;
     }
 

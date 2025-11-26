@@ -13,6 +13,8 @@ entity ZTUSERS {
         PHONENUMBER : String(50);
         EXTENSION   : String(20);
         BIRTHDATE   : String(10);
+        ACTIVED     : Boolean;
+        DELETED     : Boolean;
         ROLES       : array of {
             ROLEID : String;
         };
