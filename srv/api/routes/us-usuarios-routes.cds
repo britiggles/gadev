@@ -25,6 +25,7 @@ service UsuariosList @(path: '/api/users/') {
 
     type UsuarioInput {
         USERID : String;
+        ORIGINAL_USERID : String;
         USERNAME : String;
         COMPANYID : Integer;
         CEDIID : Integer;
