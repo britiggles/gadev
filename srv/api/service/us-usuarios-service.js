@@ -31,6 +31,24 @@ function sanitizeUserId(value) {
     return letters + digits;
 }
 
+function normalizeBirthdate(value) {
+    if (!value) {
+        return "";
+    }
+    if (typeof value === "string" && value.length >= 10) {
+        var slice = value.slice(0, 10);
+        var dateFromSlice = new Date(slice);
+        if (!isNaN(dateFromSlice.getTime())) {
+            return dateFromSlice.toISOString().slice(0, 10);
+        }
+    }
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+        return "";
+    }
+    return date.toISOString().slice(0, 10);
+}
+
 //conexion al container (como coleccion en mongoDB)
 async function connectDB(DBServer) {
     try {
@@ -168,18 +186,25 @@ async function postUsuario(data, processType, dbServer, loggedUser) {
     dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
     dataPaso.dataReq = { processType, dbServer, loggedUser, data };
     try {
+        const payload = { ...data };
+        const normalizedBirthdate = normalizeBirthdate(payload.BIRTHDATE);
+        if (normalizedBirthdate) {
+            payload.BIRTHDATE = normalizedBirthdate;
+        } else {
+            delete payload.BIRTHDATE;
+        }
         let usuarioRes;
         if (dbServer === "MongoDB") {
-            const newUsuario = new Usuario(data);
+            const newUsuario = new Usuario(payload);
             usuarioRes = await newUsuario.save();
             usuarioRes = usuarioRes.toObject();
         } else {
             // Cosmos requiere que cada item tenga un "id"
-            if (!data.id) {
-                data.id = data.USERID;
+            if (!payload.id) {
+                payload.id = payload.USERID;
             }
             const conta = getDatabase().container("ZTUSERS");
-            const { resources } = await conta.items.create(data);
+            const { resources } = await conta.items.create(payload);
             usuarioRes = resources;
         }
         dataPaso.dataRes = usuarioRes;
@@ -242,6 +267,12 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
         }
 
         const updatePayload = { ...data, USERID: targetUserId };
+        const normalizedBirthdate = normalizeBirthdate(updatePayload.BIRTHDATE);
+        if (normalizedBirthdate) {
+            updatePayload.BIRTHDATE = normalizedBirthdate;
+        } else {
+            delete updatePayload.BIRTHDATE;
+        }
         delete updatePayload.ORIGINAL_USERID;
         delete updatePayload._id;
 

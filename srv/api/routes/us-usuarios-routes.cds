@@ -34,6 +34,7 @@ service UsuariosList @(path: '/api/users/') {
         ALIAS : String;
         PHONENUMBER : String;
         EXTENSION : String;
+        BIRTHDATE : String;
         DETAIL_ROW : DetailRow;
     }
 

@@ -12,6 +12,7 @@ entity ZTUSERS {
         ALIAS       : String(50);
         PHONENUMBER : String(50);
         EXTENSION   : String(20);
+        BIRTHDATE   : String(10);
         ROLES       : array of {
             ROLEID : String;
         };

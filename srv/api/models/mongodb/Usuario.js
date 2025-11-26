@@ -8,6 +8,7 @@ const usuariosSchema = new mongoose.Schema({
     CEDIID: {type: Number},
     EMPLOYEEID: {type: Number},
     EMAIL: {type: String,maxlength: 255},
+    BIRTHDATE: {type: String,maxlength: 10},
     REGUSER: {type: String,default: 'SYSHANA'},
     REGDATE: {type: Date,default: () => new Date()},
     REGTIME: {type: String,default: () => new Date().toTimeString().split(' ')[0]}, // HH:MM:SS
