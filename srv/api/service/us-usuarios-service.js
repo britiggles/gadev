@@ -3,12 +3,13 @@ const mongoose = require("mongoose");
 function removeMongoIds(obj) {
     if (Array.isArray(obj)) {
         return obj.map(removeMongoIds);
-    } else if (obj && typeof obj === 'object') {
+    } else if (obj && typeof obj === "object") {
         const newObj = {};
         for (const key in obj) {
-            if (key !== '_id') {
-                newObj[key] = removeMongoIds(obj[key]);
+            if (key === "_id" || key === "__v") {
+                continue;
             }
+            newObj[key] = removeMongoIds(obj[key]);
         }
         return newObj;
     }
@@ -23,6 +24,62 @@ const {
     OK,
     FAIL,
 } = require("../../middlewares/respPWA.handler.js");
+
+function sanitizeUserId(value) {
+    if (!value) {
+        return "";
+    }
+    var normalized = value.toString().trim().toUpperCase();
+    normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    var letters = "";
+    var digits = "";
+    for (var i = 0; i < normalized.length; i++) {
+        var ch = normalized.charAt(i);
+        if (letters.length < 3 && /[A-Z]/.test(ch)) {
+            letters += ch;
+        } else if (letters.length >= 3 && digits.length < 7 && /[0-9]/.test(ch)) {
+            digits += ch;
+        }
+        if (letters.length === 3 && digits.length === 7) {
+            break;
+        }
+    }
+    return letters + digits;
+}
+
+function normalizeBirthdate(value) {
+    if (!value) {
+        return "";
+    }
+    if (typeof value === "string" && value.length >= 10) {
+        var slice = value.slice(0, 10);
+        var dateFromSlice = new Date(slice);
+        if (!isNaN(dateFromSlice.getTime())) {
+            return dateFromSlice.toISOString().slice(0, 10);
+        }
+    }
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+        return "";
+    }
+    return date.toISOString().slice(0, 10);
+}
+
+function normalizeDetailRow(user) {
+    if (!user || typeof user !== "object") {
+        return;
+    }
+    var source = user.DETAIL_ROW && typeof user.DETAIL_ROW === "object" ? user.DETAIL_ROW : {};
+    var isActive = Object.prototype.hasOwnProperty.call(source, "ACTIVED") ? !!source.ACTIVED : true;
+    var detailRow = {
+        ACTIVED: isActive,
+        DELETED: !isActive,
+        DETAIL_ROW_REG: Array.isArray(source.DETAIL_ROW_REG) ? source.DETAIL_ROW_REG : []
+    };
+    user.DETAIL_ROW = detailRow;
+    user.ACTIVED = detailRow.ACTIVED;
+    user.DELETED = detailRow.DELETED;
+}
 
 //conexion al container (como coleccion en mongoDB)
 async function connectDB(DBServer) {
@@ -161,21 +218,39 @@ async function postUsuario(data, processType, dbServer, loggedUser) {
     dataPaso.api = `crud?ProcessType=${processType}&DBServer=${dbServer}&LoggedUser=${loggedUser}`;
     dataPaso.dataReq = { processType, dbServer, loggedUser, data };
     try {
+        const payload = removeMongoIds({ ...data });
+        const sanitizedUserId = sanitizeUserId(payload.USERID);
+        const reUserId = /^[A-Z]{3}\d{7}$/;
+        if (!reUserId.test(sanitizedUserId)) {
+            dataPaso.messageDEV = "USERID inválido. Debe tener 3 letras seguidas de 7 números.";
+            dataPaso.messageUSR = "El ID debe tener 3 letras y 7 números (ej: ABC1234567).";
+            AddMSG(bitacora, dataPaso, "FAIL", 400);
+            return FAIL(bitacora);
+        }
+        payload.USERID = sanitizedUserId;
+        const normalizedBirthdate = normalizeBirthdate(payload.BIRTHDATE);
+        if (normalizedBirthdate) {
+            payload.BIRTHDATE = normalizedBirthdate;
+        } else {
+            delete payload.BIRTHDATE;
+        }
+        payload.USERID = sanitizeUserId(payload.USERID);
+        delete payload.ORIGINAL_USERID;
+        normalizeDetailRow(payload);
         let usuarioRes;
-        // Limpiar _id antes de guardar
-        const cleanData = removeMongoIds(data);
+
         if (dbServer === "MongoDB") {
-            const newUsuario = new Usuario(cleanData);
+            const newUsuario = new Usuario(payload);
             usuarioRes = await newUsuario.save();
             usuarioRes = usuarioRes.toObject();
         } else {
             // Cosmos requiere que cada item tenga un "id"
-            if (!cleanData.id) {
-                cleanData.id = cleanData.USERID;
+            if (!payload.id) {
+                payload.id = payload.USERID;
             }
             const conta = getDatabase().container("ZTUSERS");
-            const { resources } = await conta.items.create(cleanData);
-            usuarioRes = resources;
+            const { resource } = await conta.items.create(payload);
+            usuarioRes = resource;
         }
         dataPaso.dataRes = usuarioRes;
         dataPaso.messageUSR = "Usuario creado exitosamente.";
@@ -214,49 +289,152 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
     dataPaso.dataReq = { processType, dbServer, loggedUser, data };
 
     try {
-        const { USERID } = data;
+        const rawNewUserId = data.USERID ? data.USERID.toString().trim() : "";
+        const rawOriginalUserId = data.ORIGINAL_USERID ? data.ORIGINAL_USERID.toString().trim() : "";
+        const sanitizedNewUserId = sanitizeUserId(rawNewUserId);
+        const sanitizedOriginalUserId = sanitizeUserId(rawOriginalUserId);
+        const lookupUserId = rawOriginalUserId || rawNewUserId || sanitizedOriginalUserId || sanitizedNewUserId;
+        const targetUserId = sanitizedNewUserId || sanitizedOriginalUserId || lookupUserId;
+        const reUserId = /^[A-Z]{3}\d{7}$/;
 
-        // 1. Validar que el USERID venga en la data
-        if (!USERID) {
-            dataPaso.messageDEV = "El campo 'USERID' es requerido para actualizar.";
+        if (!targetUserId || !reUserId.test(targetUserId)) {
+            dataPaso.messageDEV = "El nuevo USERID no cumple con el formato requerido LLLNNNNNNN.";
+            dataPaso.messageUSR = "El ID debe tener 3 letras seguidas de 7 números.";
+            AddMSG(bitacora, dataPaso, "FAIL", 400);
+            return FAIL(bitacora);
+        }
+
+        if (!lookupUserId) {
+            dataPaso.messageDEV = "Se requiere 'USERID' u 'ORIGINAL_USERID' para actualizar.";
             dataPaso.messageUSR = "No se proporcionó el identificador del usuario.";
             AddMSG(bitacora, dataPaso, "FAIL", 400);
             return FAIL(bitacora);
         }
 
+        const updatePayload = removeMongoIds({ ...data, USERID: targetUserId });
+        const normalizedBirthdate = normalizeBirthdate(updatePayload.BIRTHDATE);
+        if (normalizedBirthdate) {
+            updatePayload.BIRTHDATE = normalizedBirthdate;
+        } else {
+            delete updatePayload.BIRTHDATE;
+        }
+        normalizeDetailRow(updatePayload);
+        delete updatePayload.ORIGINAL_USERID;
+
+        const shouldCheckDuplicate = targetUserId && targetUserId !== sanitizedOriginalUserId;
+        if (shouldCheckDuplicate) {
+            if (dbServer === "MongoDB") {
+                const duplicated = await Usuario.findOne({ USERID: targetUserId }).lean();
+                if (duplicated) {
+                    dataPaso.messageDEV = `Ya existe un usuario con USERID: ${targetUserId}`;
+                    dataPaso.messageUSR = "El nuevo ID seleccionado ya está en uso.";
+                    AddMSG(bitacora, dataPaso, "FAIL", 409);
+                    return FAIL(bitacora);
+                }
+            } else {
+                const conta = getDatabase().container("ZTUSERS");
+                const duplicateQuery = {
+                    query: "SELECT * FROM c WHERE c.USERID = @userId",
+                    parameters: [
+                        {
+                            name: "@userId",
+                            value: targetUserId,
+                        },
+                    ],
+                };
+                const { resources: duplicates } = await conta.items.query(duplicateQuery).fetchAll();
+                const hasDifferentRecord = duplicates.some((item) => {
+                    if (!item) {
+                        return false;
+                    }
+                    if (rawOriginalUserId && item.USERID === rawOriginalUserId) {
+                        return false;
+                    }
+                    if (sanitizedOriginalUserId && item.USERID === sanitizedOriginalUserId) {
+                        return false;
+                    }
+                    return true;
+                });
+                if (hasDifferentRecord) {
+                    dataPaso.messageDEV = `Ya existe un usuario con USERID: ${targetUserId}`;
+                    dataPaso.messageUSR = "El nuevo ID seleccionado ya está en uso.";
+                    AddMSG(bitacora, dataPaso, "FAIL", 409);
+                    return FAIL(bitacora);
+                }
+            }
+        }
+
         let updatedUsuario;
-        // Limpiar _id antes de actualizar
-        const cleanData = removeMongoIds(data);
-        // 2. Lógica separada por tipo de base de datos
+
         if (dbServer === "MongoDB") {
-            // --- LÓGICA PARA MONGODB ---
-            updatedUsuario = await Usuario.findOneAndUpdate(
-                { USERID: USERID },
-                cleanData,
-                { new: true }
-            );
+            const lookupCandidates = [];
+            if (lookupUserId) {
+                lookupCandidates.push(lookupUserId);
+            }
+            if (sanitizedOriginalUserId && !lookupCandidates.includes(sanitizedOriginalUserId)) {
+                lookupCandidates.push(sanitizedOriginalUserId);
+            }
+            if (targetUserId && !lookupCandidates.includes(targetUserId)) {
+                lookupCandidates.push(targetUserId);
+            }
+
+            for (const candidate of lookupCandidates) {
+                updatedUsuario = await Usuario.findOneAndUpdate(
+                    { USERID: candidate },
+                    updatePayload,
+                    {
+                        new: true,
+                    }
+                );
+                if (updatedUsuario) {
+                    break;
+                }
+            }
+
             if (updatedUsuario) {
                 updatedUsuario = updatedUsuario.toObject();
             }
         } else {
-            // --- LÓGICA PARA AZURE COSMOS DB ---
             const conta = getDatabase().container("ZTUSERS");
+            const lookupCandidates = [];
+            if (lookupUserId) {
+                lookupCandidates.push(lookupUserId);
+            }
+            if (sanitizedOriginalUserId && !lookupCandidates.includes(sanitizedOriginalUserId)) {
+                lookupCandidates.push(sanitizedOriginalUserId);
+            }
+            if (targetUserId && !lookupCandidates.includes(targetUserId)) {
+                lookupCandidates.push(targetUserId);
+            }
 
-            // Buscar el usuario existente
-            const querySpec = {
-                query: "SELECT * FROM c WHERE c.USERID = @userId",
-                parameters: [{ name: "@userId", value: USERID }],
-            };
+            let usuarioToUpdate = null;
 
-            const { resources: items } = await conta.items.query(querySpec).fetchAll();
+            for (const candidate of lookupCandidates) {
+                const querySpec = {
+                    query: "SELECT * FROM c WHERE c.USERID = @userId",
+                    parameters: [
+                        {
+                            name: "@userId",
+                            value: candidate,
+                        },
+                    ],
+                };
 
-            if (items.length === 0) {
+                const queryResult = await conta.items.query(querySpec).fetchAll();
+                if (queryResult.resources && queryResult.resources.length > 0) {
+                    usuarioToUpdate = queryResult.resources[0];
+                    break;
+                }
+            }
+
+            if (!usuarioToUpdate) {
                 updatedUsuario = null;
             } else {
-                const usuarioToUpdate = items[0];
-                const updatedData = { ...usuarioToUpdate, ...cleanData };
+                const updatedData = { ...usuarioToUpdate, ...updatePayload };
+                if (!updatedData.id) {
+                    updatedData.id = usuarioToUpdate.id || targetUserId;
+                }
 
-                // ⚠️ IMPORTANTE: usar replace, no create
                 const { resource: replacedItem } = await conta
                     .item(usuarioToUpdate.id, usuarioToUpdate.USERID)
                     .replace(updatedData);
@@ -267,7 +445,7 @@ async function UpdateUsuario(data, processType, dbServer, loggedUser) {
 
         // 3. Validar si se encontró y actualizó
         if (!updatedUsuario) {
-            dataPaso.messageDEV = `No se encontró un usuario con USERID: ${USERID}`;
+            dataPaso.messageDEV = `No se encontró un usuario con identificadores proporcionados.`;
             dataPaso.messageUSR = "El usuario que intenta actualizar no existe.";
             AddMSG(bitacora, dataPaso, "FAIL", 404);
             return FAIL(bitacora);
