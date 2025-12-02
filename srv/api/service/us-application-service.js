@@ -183,7 +183,7 @@ async function postApplicationMethod(bitacora, data, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c.id FROM c WHERE c.APPID = @appId",
+      query: "SELECT * FROM c WHERE c.APPID = @appId OFFSET 0 LIMIT 1",
       parameters: [{ name: "@appId", value: data.APPID }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -252,7 +252,7 @@ async function updateApplicationMethod(bitacora, appId, data, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT * FROM c WHERE c.APPID = @appId OFFSET 0 LIMIT 1",
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -265,7 +265,8 @@ async function updateApplicationMethod(bitacora, appId, data, req) {
           response.dataRes = null;
           return FAIL(AddMSG(bitacora, response, "FAIL", 404, true));
         }
-        const updatedDoc = { ...application, ...data };
+        const updatedDoc = { ...application, ...data, id: application.id, // conservar id original
+      APPID: application.APPID };
         return container.items.upsert(updatedDoc)
           .then(upsertRes => {
             response.messageDEV = "Aplicación actualizada correctamente (Cosmos SQL)";
