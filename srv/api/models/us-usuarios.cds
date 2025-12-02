@@ -12,6 +12,10 @@ entity ZTUSERS {
         ALIAS       : String(50);
         PHONENUMBER : String(50);
         EXTENSION   : String(20);
+        PROFILE_PIC_URL : String(512);
+        BIRTHDATE       : String(10);
+        ACTIVED         : Boolean;
+        DELETED         : Boolean;
         ROLES       : array of {
             ROLEID : String;
         };

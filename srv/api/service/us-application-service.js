@@ -4,32 +4,49 @@ const { OK, BITACORA, DATA, FAIL, AddMSG } = require("../../middlewares/respPWA.
 const { getDatabase } = require("../../config/connectToCosmosDB.js");
 const Application = require("../models/mongodb/Applications.js");
 
-
+/**
+ * Conecta a la base de datos especificada (MongoDB o Azure Cosmos DB).
+ * @param {string} DBServer - El tipo de servidor de base de datos ("MongoDB" o "AZURECOSMOS").
+ * @throws {Error} Si el DBServer no es reconocido o hay un error de conexión.
+ */
 async function connectDB(DBServer) {
   try {
+    // Evaluar el tipo de servidor de base de datos proporcionado
     switch (DBServer) {
       case "MongoDB":
+        // Verificar si la conexión a MongoDB no está ya establecida
         if (mongoose.connection.readyState === 0) {
+          // Establecer conexión a MongoDB usando la URI del entorno
           await mongoose.connect(process.env.MONGO_URI);
           console.log("✅ Conectado a MongoDB local.");
         }
         break;
 
       case "AZURECOSMOS":
+        // CosmosDB se conecta desde el archivo de configuración, no requiere acción adicional aquí
         console.log(
           "✅ CosmosDB ya está conectado desde el archivo de config."
         );
         break;
 
       default:
+        // Lanzar error si el DBServer no es reconocido
         throw new Error(`DBServer no reconocido: ${DBServer}`);
     }
   } catch (error) {
+    // Registrar el error en consola y relanzarlo para manejo superior
     console.error(`❌ Error al conectar a ${DBServer}:`, error.message);
     throw error;
   }
 }
 
+/**
+ * Función principal que maneja las operaciones CRUD para aplicaciones basadas en el ProcessType.
+ * Extrae parámetros de la solicitud, conecta a la DB y ejecuta el método correspondiente.
+ * Maneja errores y envía respuestas.
+ * @param {Object} req - Objeto de solicitud que contiene req.req (express request), req.res (response), etc.
+ * @returns {Object} Resultado de OK o FAIL con la bitácora actualizada.
+ */
 async function crudApplication(req) {
   let bitacora = BITACORA();
   let data = DATA();
@@ -95,6 +112,7 @@ async function crudApplication(req) {
         break;
       case "deleteHardPrivilege":
         bitacora = await deletePrivilegeMethod(bitacora, body.appId, body.viewId, body.processId, body.data, req);
+        break;
       case "getAplications":
         bitacora = await getAplicationsMethod(bitacora, req);
         break;
@@ -144,6 +162,15 @@ async function crudApplication(req) {
   }
 };
 
+/**
+ * Crea una nueva aplicación en la base de datos.
+ * Verifica si ya existe, y si no, la guarda.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {Object} data - Datos de la aplicación a crear (incluye APPID).
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 async function postApplicationMethod(bitacora, data, req) {
   let response = DATA();
   bitacora.process = "Creación de aplicación";
@@ -183,7 +210,11 @@ async function postApplicationMethod(bitacora, data, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
+<<<<<<< HEAD
       query: "SELECT * FROM c WHERE c.APPID = @appId OFFSET 0 LIMIT 1",
+=======
+      query: "SELECT TOP 1 *.id FROM c WHERE c.APPID = @appId",
+>>>>>>> b3274382efe6d99e429375c9965dd325904c0bd8
       parameters: [{ name: "@appId", value: data.APPID }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -214,6 +245,16 @@ async function postApplicationMethod(bitacora, data, req) {
   }
 }
 
+/**
+ * Actualiza una aplicación existente en la base de datos.
+ * Busca por APPID y actualiza con los nuevos datos.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación a actualizar.
+ * @param {Object} data - Datos a actualizar en la aplicación.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 async function updateApplicationMethod(bitacora, appId, data, req) {
   let response = DATA();
   bitacora.process = "Actualizacion de aplicacion";
@@ -252,7 +293,11 @@ async function updateApplicationMethod(bitacora, appId, data, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
+<<<<<<< HEAD
       query: "SELECT * FROM c WHERE c.APPID = @appId OFFSET 0 LIMIT 1",
+=======
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
+>>>>>>> b3274382efe6d99e429375c9965dd325904c0bd8
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -285,6 +330,17 @@ async function updateApplicationMethod(bitacora, appId, data, req) {
   }
 }
 
+/**
+ * Actualiza una vista específica dentro de una aplicación.
+ * Busca la aplicación y la vista por IDs, y actualiza con los nuevos datos.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista a actualizar.
+ * @param {Object} data - Datos a actualizar en la vista.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // 🔧 Actualiza una vista
 async function updateViewMethod(bitacora, appId, viewId, data, req) {
   let response = DATA();
@@ -331,7 +387,7 @@ async function updateViewMethod(bitacora, appId, viewId, data, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -370,6 +426,18 @@ async function updateViewMethod(bitacora, appId, viewId, data, req) {
   }
 }
 
+/**
+ * Actualiza un proceso específico dentro de una vista de una aplicación.
+ * Busca la aplicación, vista y proceso por IDs, y actualiza con los nuevos datos.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista.
+ * @param {string} processId - ID del proceso a actualizar.
+ * @param {Object} data - Datos a actualizar en el proceso.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // 🔧 Actualiza un proceso
 async function updateProcessMethod(bitacora, appId, viewId, processId, data, req) {
   let response = DATA();
@@ -424,7 +492,7 @@ async function updateProcessMethod(bitacora, appId, viewId, processId, data, req
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -471,6 +539,15 @@ async function updateProcessMethod(bitacora, appId, viewId, processId, data, req
   }
 }
 
+/**
+ * Realiza un soft delete de una aplicación, marcándola como eliminada.
+ * Establece DETAIL_ROW.DELETED = true.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación a eliminar.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // 🔧 Elimina una aplicación (soft delete)
 async function deleteApplicationMethod(bitacora, appId, req) {
   let response = DATA();
@@ -510,7 +587,7 @@ async function deleteApplicationMethod(bitacora, appId, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: `SELECT TOP 1 c FROM c WHERE c.APPID = @appId`,
+      query: `SELECT TOP 1 * FROM c WHERE c.APPID = @appId`,
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -542,6 +619,15 @@ async function deleteApplicationMethod(bitacora, appId, req) {
   }
 }
 
+/**
+ * Restaura una aplicación previamente eliminada (soft delete).
+ * Establece DETAIL_ROW.DELETED = false.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación a restaurar.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // 🔧 Restaura una aplicación eliminada
 async function restoreApplicationMethod(bitacora, appId, req) {
   let response = DATA();
@@ -581,7 +667,7 @@ async function restoreApplicationMethod(bitacora, appId, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c.* FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 *.* FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -613,6 +699,16 @@ async function restoreApplicationMethod(bitacora, appId, req) {
   }
 }
 
+/**
+ * Añade una nueva vista a una aplicación existente.
+ * Verifica que no exista ya y la agrega al arreglo VIEWS.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {Object} data - Datos de la vista a añadir (VIEWSID, PROCESS opcional).
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // ➕ Añade una nueva vista a una aplicación
 async function addViewMethod(bitacora, appId, data, req) {
   let response = DATA();
@@ -669,7 +765,7 @@ async function addViewMethod(bitacora, appId, data, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -718,6 +814,17 @@ async function addViewMethod(bitacora, appId, data, req) {
   }
 }
 
+/**
+ * Añade un nuevo proceso a una vista existente dentro de una aplicación.
+ * Verifica que no exista ya y lo agrega al arreglo PROCESS de la vista.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista.
+ * @param {string} processId - ID del proceso a añadir.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // Añade un nuevo proceso a una vista existente
 async function addProcessMethod(bitacora, appId, viewId, processId, req) {
   let response = DATA();
@@ -778,7 +885,7 @@ async function addProcessMethod(bitacora, appId, viewId, processId, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
     return container.items.query(querySpec).fetchAll()
@@ -831,9 +938,20 @@ async function addProcessMethod(bitacora, appId, viewId, processId, req) {
   }
 }
 
+/**
+ * Añade un privilegio a un proceso existente dentro de una vista de una aplicación.
+ * Extrae privilegeId de data, verifica existencia y lo agrega al arreglo PRIVILEGE.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista.
+ * @param {string} processId - ID del proceso.
+ * @param {Object} data - Datos que incluyen privilegeId.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 // Añade un privilegio a un proceso existente dentro de una vista
 async function addPrivilegeMethod(bitacora, appId, viewId, processId, data, req) {
-  console.log("hola")
   let response = DATA();
   bitacora.process = "Añadir privilegio a proceso";
   response.process = bitacora.process;
@@ -916,7 +1034,7 @@ async function addPrivilegeMethod(bitacora, appId, viewId, processId, data, req)
     // COSMOS SQL
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
 
@@ -985,6 +1103,15 @@ async function addPrivilegeMethod(bitacora, appId, viewId, processId, data, req)
 
 //deletes
 
+/**
+ * Elimina permanentemente (hard delete) una aplicación de la base de datos.
+ * Elimina el documento completamente.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación a eliminar.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 async function deleteHardApplicationMethod(bitacora, appId, req) {
   let response = DATA();
   bitacora.process = "Eliminación física de aplicación";
@@ -1029,7 +1156,7 @@ async function deleteHardApplicationMethod(bitacora, appId, req) {
     try {
       const container = getDatabase().container("ZTAPPLICATION");
       const querySpec = {
-        query: "SELECT TOP 1 c.id, c.APPID FROM c WHERE c.APPID = @appId",
+        query: "SELECT TOP 1 *.id, c.APPID FROM c WHERE c.APPID = @appId",
         parameters: [{ name: "@appId", value: appId }]
       };
 
@@ -1063,6 +1190,16 @@ async function deleteHardApplicationMethod(bitacora, appId, req) {
   }
 }
 
+/**
+ * Elimina permanentemente una vista de una aplicación.
+ * Remueve la vista del arreglo VIEWS.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista a eliminar.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 async function deleteHardViewMethod(bitacora, appId, viewId, req) {
   let response = DATA();
   bitacora.process = "Eliminación permanente de vista";
@@ -1122,7 +1259,7 @@ async function deleteHardViewMethod(bitacora, appId, viewId, req) {
       const container = getDatabase().container("ZTAPPLICATION");
 
       const querySpec = {
-        query: "SELECT TOP 1 c.* FROM c WHERE c.APPID = @appId",
+        query: "SELECT TOP 1 *.* FROM c WHERE c.APPID = @appId",
         parameters: [{ name: "@appId", value: appId }]
       };
 
@@ -1167,6 +1304,17 @@ async function deleteHardViewMethod(bitacora, appId, viewId, req) {
 
 
 
+/**
+ * Elimina permanentemente un proceso de una vista dentro de una aplicación.
+ * Remueve el proceso del arreglo PROCESS de la vista.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista.
+ * @param {string} processId - ID del proceso a eliminar.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 async function deleteHardProcessMethod(bitacora, appId, viewId, processId, req) {
 
   let response = DATA();
@@ -1236,7 +1384,7 @@ async function deleteHardProcessMethod(bitacora, appId, viewId, processId, req) 
       const container = getDatabase().container("ZTAPPLICATION");
 
       const querySpec = {
-        query: "SELECT TOP 1 c.* FROM c WHERE c.APPID = @appId",
+        query: "SELECT TOP 1 *.* FROM c WHERE c.APPID = @appId",
         parameters: [{ name: "@appId", value: appId }]
       };
 
@@ -1286,6 +1434,18 @@ async function deleteHardProcessMethod(bitacora, appId, viewId, processId, req) 
   }
 }
 
+/**
+ * Elimina un privilegio de un proceso dentro de una vista de una aplicación.
+ * Extrae privilegeId de data y lo remueve del arreglo PRIVILEGE.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {string} viewId - ID de la vista.
+ * @param {string} processId - ID del proceso.
+ * @param {Object} data - Datos que incluyen privilegeId.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos.
+ */
 async function deletePrivilegeMethod(bitacora, appId, viewId, processId, data, req) {
   console.log("delete privilege");
   let response = DATA();
@@ -1371,7 +1531,7 @@ async function deletePrivilegeMethod(bitacora, appId, viewId, processId, data, r
     // COSMOS SQL
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
 
@@ -1437,6 +1597,14 @@ async function deletePrivilegeMethod(bitacora, appId, viewId, processId, data, r
 }
 
 
+/**
+ * Obtiene todas las aplicaciones de la base de datos.
+ * Retorna una lista de aplicaciones.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos (lista de aplicaciones).
+ */
 async function getAplicationsMethod(bitacora, req) {
 
   let response = DATA();
@@ -1511,6 +1679,15 @@ async function getAplicationsMethod(bitacora, req) {
 }
 
 
+/**
+ * Obtiene una aplicación específica por su APPID.
+ * Retorna los datos de la aplicación.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación a obtener.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y datos de la aplicación.
+ */
 async function getAplicationIDMethod(bitacora, appId, req) {
   let response = DATA();
   bitacora.process = "Consulta de aplicación por ID";
@@ -1548,7 +1725,7 @@ async function getAplicationIDMethod(bitacora, appId, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
 
@@ -1581,6 +1758,15 @@ async function getAplicationIDMethod(bitacora, appId, req) {
 }
 
 
+/**
+ * Obtiene todos los procesos asociados a una aplicación, aplanando vistas y procesos.
+ * Retorna una lista de objetos con viewId y processId.
+ * Soporta MongoDB y Azure Cosmos DB.
+ * @param {Object} bitacora - Objeto de bitácora para logging.
+ * @param {string} appId - ID de la aplicación.
+ * @param {Object} req - Objeto de solicitud para obtener dbserver.
+ * @returns {Object} Resultado de OK o FAIL con mensaje y lista de procesos.
+ */
 async function getAplicationProcessMethod(bitacora, appId, req) {
   let response = DATA();
   bitacora.process = "Consulta de procesos por aplicación";
@@ -1629,7 +1815,7 @@ async function getAplicationProcessMethod(bitacora, appId, req) {
   } else {
     const container = getDatabase().container("ZTAPPLICATION");
     const querySpec = {
-      query: "SELECT TOP 1 c FROM c WHERE c.APPID = @appId",
+      query: "SELECT TOP 1 * FROM c WHERE c.APPID = @appId",
       parameters: [{ name: "@appId", value: appId }]
     };
 
